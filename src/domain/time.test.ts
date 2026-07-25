@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseBoardTime, shouldAdvanceBoardTime } from './time';
+import { parseBoardTime, shouldAdvanceBoardTime, timeUntilFestival } from './time';
 
 // The board lists start times only, within festival hours (11:00-22:00), so a
 // bare number is unambiguous. These cases are transcribed from the real 2025
@@ -79,5 +79,54 @@ describe('shouldAdvanceBoardTime', () => {
     expect(shouldAdvanceBoardTime('3')).toBe(false); // might be the start of 331
     expect(shouldAdvanceBoardTime('11')).toBe(false);
     expect(shouldAdvanceBoardTime('')).toBe(false);
+  });
+});
+
+// `ended` gates the post-festival wrap-up, which replaces the Now tab. A false
+// positive would hijack the main screen mid-festival — the single worst thing
+// this flag can do — so the boundaries are pinned in festival-local time.
+// Long Beach is PDT (UTC-7) in July; the last day closes at 22:00.
+describe('timeUntilFestival', () => {
+  const at = (iso: string) => timeUntilFestival(new Date(iso));
+
+  it('has not started the night before', () => {
+    const t = at('2026-07-24T20:00:00-07:00');
+    expect(t.started).toBe(false);
+    expect(t.ended).toBe(false);
+  });
+
+  it('counts down in festival-local time, not UTC', () => {
+    // 11:00 PDT Saturday is 18:00Z — an implementation that forgot the offset
+    // would report the festival as already open at 04:00 PDT.
+    const t = at('2026-07-25T04:00:00-07:00');
+    expect(t.started).toBe(false);
+    expect(t.hours).toBe(7);
+  });
+
+  it('is running, not ended, in the middle of day one', () => {
+    const t = at('2026-07-25T14:30:00-07:00');
+    expect(t.started).toBe(true);
+    expect(t.ended).toBe(false);
+  });
+
+  it('is running, not ended, overnight between the two days', () => {
+    const t = at('2026-07-26T02:00:00-07:00');
+    expect(t.started).toBe(true);
+    expect(t.ended).toBe(false);
+  });
+
+  it('is still running one minute before the last set could end', () => {
+    const t = at('2026-07-26T21:59:00-07:00');
+    expect(t.ended).toBe(false);
+  });
+
+  it('ends after close on the final day', () => {
+    const t = at('2026-07-26T22:01:00-07:00');
+    expect(t.started).toBe(true);
+    expect(t.ended).toBe(true);
+  });
+
+  it('stays ended the following week', () => {
+    expect(at('2026-08-02T12:00:00-07:00').ended).toBe(true);
   });
 });

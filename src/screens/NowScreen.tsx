@@ -12,6 +12,7 @@ import { selectedMainByDay } from '@/store/selectors';
 import type { TabId } from '@/store/appStore';
 import type { MenuRoute } from '@/components/MenuDrawer';
 import { NowDashboard } from './now/NowDashboard';
+import { WrapUpScreen } from './now/WrapUpScreen';
 
 export function NowScreen({
   onOpenMenu,
@@ -23,6 +24,15 @@ export function NowScreen({
   // "Any set times at all" is the right gate for showing the day view; the
   // dashboard itself is responsible for saying how complete that day is.
   const { any } = useScheduleStatus();
+  const dismissedTips = useApp((s) => s.settings.dismissedTips);
+  const dismissTip = useApp((s) => s.dismissTip);
+
+  // Once the gates have closed for the last time, a countdown and a "what's
+  // next" dashboard are both wrong. Show the recap instead — but only until
+  // it's dismissed, so it can never sit between someone and their own data.
+  if (timeUntilFestival().ended && !dismissedTips.includes('wrap-up')) {
+    return <WrapUpScreen onOpenMenu={onOpenMenu} onDismiss={() => void dismissTip('wrap-up')} />;
+  }
 
   if (any) {
     return <NowDashboard onOpenMenu={onOpenMenu} onGoTab={onGoTab} />;

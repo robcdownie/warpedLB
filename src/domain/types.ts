@@ -178,7 +178,9 @@ export type TipId =
   | 'map'
   | 'schedule-import'
   | 'board-code'
-  | 'festival-mode';
+  | 'festival-mode'
+  /** The post-festival recap. Dismissing it returns the Now tab to normal. */
+  | 'wrap-up';
 
 export interface AppSettings {
   activeUserId: string;
