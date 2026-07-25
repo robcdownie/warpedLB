@@ -51,6 +51,28 @@ export function AboutScreen() {
         </ul>
       </Card>
 
+      <Card className="mb-4 p-4">
+        <h2 className="mb-2 font-display text-[14px] uppercase tracking-wide text-secondary">
+          Corndog fund
+        </h2>
+        <p className="text-[13px] leading-relaxed text-secondary">
+          This app is free and always will be. If it saved your weekend and you feel like it, you can
+          throw a couple bucks at my corndog purchases. Entirely optional — nothing in here is locked
+          behind it.
+        </p>
+        <a
+          href="https://venmo.com/u/robbie-downie"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="mt-3 flex min-h-touch items-center justify-center rounded-lg border border-warp-pink/50 bg-warp-pink/10 px-4 font-display text-[14px] text-primary active:bg-warp-pink/20"
+        >
+          Venmo @robbie-downie
+        </a>
+        <p className="mt-2 text-center text-[11px] text-muted">
+          Opens Venmo — needs a connection, unlike the rest of the app.
+        </p>
+      </Card>
+
       <p className="px-1 text-center text-[11px] text-muted">
         Made by a fan, for fans. Have a great show.
       </p>
