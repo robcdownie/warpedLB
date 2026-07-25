@@ -66,6 +66,43 @@ export function FriendsScreen() {
 
   return (
     <Screen>
+      {/*
+        "How do I join a group?" is the first thing anyone asks, and the honest
+        answer is that there is no group to join — there is no server to host
+        one. A roster is per-phone and built by hand or by import. Saying that
+        plainly here is cheaper than every user discovering it by hunting for a
+        Join button that cannot exist.
+      */}
+      <Card className="mb-4 border-warp-blue-500/30 bg-accent-soft p-4">
+        <h2 className="mb-2 font-display text-[15px] uppercase tracking-wide text-secondary">
+          How groups work here
+        </h2>
+        <ol className="space-y-2 text-[13px] leading-relaxed text-secondary">
+          <li className="flex gap-2.5">
+            <Step n={1} />
+            <span>
+              There&apos;s no group to join and no account. This phone only knows the people you add
+              below, or the people whose codes you import.
+            </span>
+          </li>
+          <li className="flex gap-2.5">
+            <Step n={2} />
+            <span>
+              Add everyone you&apos;re going with. Then swap codes — <b>both directions</b>. They
+              send you their picks, you send them yours. Importing someone&apos;s code adds them and
+              their plan to your phone automatically.
+            </span>
+          </li>
+          <li className="flex gap-2.5">
+            <Step n={3} />
+            <span>
+              Nothing you do here reaches anyone else until you hand them a code. There is no
+              background sync, so a plan you change is stale on their phone until you resend.
+            </span>
+          </li>
+        </ol>
+      </Card>
+
       {/* Who am I */}
       <Card className="mb-4 p-4">
         <h2 className="mb-1 font-display text-[15px] uppercase tracking-wide text-secondary">
@@ -278,5 +315,13 @@ export function FriendsScreen() {
         onCancel={() => setRemoving(null)}
       />
     </Screen>
+  );
+}
+
+function Step({ n }: { n: number }) {
+  return (
+    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-white">
+      {n}
+    </span>
   );
 }

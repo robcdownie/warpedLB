@@ -45,7 +45,13 @@ export function installDebugHook() {
     },
     exportSchedule: () => {
       const s = useApp.getState();
-      return encodeSchedule(s.performances, s.settings.activeUserId, new Date().toISOString());
+      // Match ScheduleIoScreen and send the display NAME, not the id. env.source
+      // is rendered to whoever imports the code ("Imported from …"), so a
+      // harness that exported an id here would be testing a different string
+      // from the one users actually ship.
+      const me = s.userById.get(s.settings.activeUserId);
+      const source = me?.name ?? s.settings.activeUserId;
+      return encodeSchedule(s.performances, source, new Date().toISOString());
     },
     exportSelections: (userId: string) => {
       const s = useApp.getState();
