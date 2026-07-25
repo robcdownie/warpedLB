@@ -13,7 +13,15 @@ import type { DayId } from '@/domain/types';
 
 export function ScheduleIoScreen() {
   const performances = useApp((s) => s.performances);
-  const activeUserId = useApp((s) => s.settings.activeUserId);
+  /**
+   * The code carries whoever exported it, and the receiving phone SHOWS it —
+   * "Imported from …" on the schedule strip. So send the display name, not the
+   * internal id: an id like `sam-k3f9q` is noise, and if you're sharing a code
+   * publicly this is the string strangers will read.
+   */
+  const exportSource = useApp(
+    (s) => s.userById.get(s.settings.activeUserId)?.name ?? s.settings.activeUserId,
+  );
   const provenance = useApp((s) => s.settings.schedule);
   const status = useScheduleStatus();
   const [tab, setTab] = useState<'export' | 'import'>('import');
@@ -26,11 +34,11 @@ export function ScheduleIoScreen() {
     const completeDays = (['saturday', 'sunday'] as DayId[]).filter(
       (d) => status.byDay[d].status === 'complete',
     );
-    return encodeSchedule(performances, activeUserId, new Date().toISOString(), {
+    return encodeSchedule(performances, exportSource, new Date().toISOString(), {
       revision: provenance.scheduleRevision + 1,
       completeDays,
     });
-  }, [performances, activeUserId, provenance.scheduleRevision, status]);
+  }, [performances, exportSource, provenance.scheduleRevision, status]);
   const scheduledCount = performances.filter((p) => p.startTime && p.stageId).length;
 
   return (
@@ -69,6 +77,10 @@ export function ScheduleIoScreen() {
             <p className="mt-1.5 text-[12px] text-muted">
               Sends as revision {provenance.scheduleRevision + 1}. Days you&apos;ve marked complete
               are sent as complete; the rest arrive as partial.
+            </p>
+            <p className="mt-1.5 text-[12px] text-muted">
+              This code says it came from <b>{exportSource}</b>. Everyone who imports it sees that —
+              rename your profile in Settings first if you&apos;re sharing it beyond your friends.
             </p>
           </Card>
           <ExportPanel

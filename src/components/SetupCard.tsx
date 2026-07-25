@@ -37,7 +37,9 @@ export function SetupCard({
       case 'bands':
         return onGoTab('bands');
       case 'schedule':
-        return onGoTab('schedule');
+        // Import first, not the manual editor: pasting a code someone already
+        // typed off the board is far less work than typing 76 sets yourself.
+        return onOpenMenu('schedule-io');
       case 'friends':
         return onOpenMenu('friends');
       case 'emergency':

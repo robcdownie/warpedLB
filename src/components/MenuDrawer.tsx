@@ -1,11 +1,11 @@
 import { useRef } from 'react';
+import { APP_DISCLAIMER } from '@/config/event';
 import {
   Settings,
   Users,
   Upload,
   Database,
   ShieldCheck,
-  FlaskConical,
   Info,
   MapPinned,
   Footprints,
@@ -30,17 +30,35 @@ export type MenuRoute =
   | 'travel'
   | 'emergency';
 
-const ITEMS: { route: MenuRoute; label: string; Icon: typeof Settings; desc: string }[] = [
-  { route: 'friends', label: 'Friends & Sharing', Icon: Users, desc: 'Import / export selections' },
+/**
+ * `admin: true` hides an entry unless settings.adminUnlocked is on. These are
+ * pre-festival maintenance screens; on a public build they're noise at best and
+ * a way to wreck your own map at worst.
+ *
+ * Offline Test is deliberately NOT admin-gated: the setup checklist routes to
+ * it and the README tells people to open it, so hiding it would lock out
+ * exactly the users who need to confirm the app really works without signal.
+ *
+ * Demo Mode has no entry at all here. Nothing else calls enterDemo, so leaving
+ * it out is what removes it — and on festival day, fictional set times are a
+ * genuinely dangerous thing to leave one tap away.
+ */
+const ITEMS: {
+  route: MenuRoute;
+  label: string;
+  Icon: typeof Settings;
+  desc: string;
+  admin?: boolean;
+}[] = [
+  { route: 'friends', label: 'Friends & Sharing', Icon: Users, desc: 'Add people, import / export plans' },
   { route: 'schedule-io', label: 'Schedule Import / Export', Icon: Upload, desc: 'Set times as QR, code, or file' },
   { route: 'offline-test', label: 'Offline Test', Icon: ShieldCheck, desc: 'Verify offline readiness' },
   { route: 'travel', label: 'Travel & Crowd', Icon: Footprints, desc: 'Walk-time matrix & crowd level' },
   // Calibration lives inside Map Setup: it's a pre-festival admin task, not
   // something to reach for while standing in a crowd (plan §P1-12).
-  { route: 'map-setup', label: 'Map Setup', Icon: MapPinned, desc: 'Verify the map & calibrate pins' },
+  { route: 'map-setup', label: 'Map Setup', Icon: MapPinned, desc: 'Verify the map & calibrate pins', admin: true },
   { route: 'emergency', label: 'Emergency Schedule', Icon: LifeBuoy, desc: 'Plain-text backup plan' },
   { route: 'data', label: 'Backup & Data', Icon: Database, desc: 'Export / import / reset' },
-  { route: 'demo', label: 'Demo Mode', Icon: FlaskConical, desc: 'Try the app with sample times' },
   { route: 'settings', label: 'Settings', Icon: Settings, desc: 'Profile, theme, thresholds' },
   { route: 'about', label: 'About', Icon: Info, desc: 'Disclaimer & version' },
 ];
@@ -56,6 +74,7 @@ export function MenuDrawer({
 }) {
   const activeUser = useApp((s) => s.userById.get(s.settings.activeUserId));
   const festivalMode = useApp((s) => s.settings.festivalMode);
+  const adminUnlocked = useApp((s) => s.settings.adminUnlocked);
   const updateSettings = useApp((s) => s.updateSettings);
   const panelRef = useRef<HTMLDivElement>(null);
   useModalA11y(open, panelRef, onClose);
@@ -143,7 +162,7 @@ export function MenuDrawer({
         </div>
 
         <ul className="p-2">
-          {ITEMS.map(({ route, label, Icon, desc }) => (
+          {ITEMS.filter((it) => !it.admin || adminUnlocked).map(({ route, label, Icon, desc }) => (
             <li key={route}>
               <button
                 type="button"
@@ -165,8 +184,7 @@ export function MenuDrawer({
           ))}
         </ul>
         <p className="px-5 py-4 text-[11px] leading-relaxed text-muted">
-          Unofficial personal companion app. Not affiliated with or endorsed by Vans or
-          Vans Warped Tour.
+          {APP_DISCLAIMER}
         </p>
       </div>
     </div>

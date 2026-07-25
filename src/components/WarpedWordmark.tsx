@@ -1,4 +1,5 @@
 import { cx } from './ui';
+import { APP_NAME } from '@/config/event';
 
 /**
  * Text-based Warped Long Beach wordmark rendered from local fonts + SVG shapes.
@@ -8,7 +9,7 @@ export function WarpedWordmark({ className }: { className?: string }) {
   return (
     <div
       className={cx('relative flex select-none items-center', className)}
-      aria-label="Warped Long Beach Companion"
+      aria-label={APP_NAME}
       role="img"
     >
       <div

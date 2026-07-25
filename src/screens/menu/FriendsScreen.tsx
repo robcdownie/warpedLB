@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react';
-import { Upload, Download, UserCheck, Camera, Check } from 'lucide-react';
+import { Upload, Download, UserCheck, Camera, Check, UserPlus, Pencil, Trash2 } from 'lucide-react';
 import { Screen, Card, Button, cx } from '@/components/ui';
 import { Sheet } from '@/components/Sheet';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { FriendAvatar } from '@/components/FriendAvatar';
 import { ExportPanel } from '@/components/ExportPanel';
 import { ImportPanel } from '@/components/ImportPanel';
+import { ProfileForm } from '@/components/ProfileForm';
 import { useApp } from '@/store/appStore';
 import { usePlanStatuses } from '@/hooks/usePlanStatus';
 import { planStatusLabel, planStatusBadge } from '@/domain/planStatus';
 import { encodeSelections } from '@/domain/share/payloads';
 import { timestampSlug } from '@/domain/share/files';
+import type { User } from '@/domain/types';
 
 export function FriendsScreen() {
   const users = useApp((s) => s.users);
@@ -17,10 +20,14 @@ export function FriendsScreen() {
   const activeUserId = useApp((s) => s.settings.activeUserId);
   const updateSettings = useApp((s) => s.updateSettings);
   const putUser = useApp((s) => s.putUser);
+  const deleteUser = useApp((s) => s.deleteUser);
   const plans = usePlanStatuses();
 
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  /** Profile sheet: a User to edit, 'new' to create, or null when closed. */
+  const [editing, setEditing] = useState<User | 'new' | null>(null);
+  const [removing, setRemoving] = useState<User | null>(null);
 
   const activeUser = users.find((u) => u.id === activeUserId);
   const myCount = useMemo(
@@ -46,6 +53,17 @@ export function FriendsScreen() {
     reader.readAsDataURL(file);
   };
 
+  /**
+   * Why removal is ever blocked, stated rather than implied by a dead button:
+   * App.tsx sends you back to setup when activeUserId stops resolving, so
+   * deleting yourself — or the last profile — would eject you from the app.
+   */
+  const blockedReason = (u: User): string | null => {
+    if (u.id === activeUserId) return 'This is you. Switch this phone to another profile first.';
+    if (users.length <= 1) return 'You need at least one profile on this phone.';
+    return null;
+  };
+
   return (
     <Screen>
       {/* Who am I */}
@@ -56,7 +74,7 @@ export function FriendsScreen() {
         <p className="mb-3 text-[13px] text-secondary">
           Each person picks bands on their own phone, then shares. Choose whose phone this is.
         </p>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(84px,1fr))]">
           {users.map((u) => (
             <button
               key={u.id}
@@ -76,6 +94,15 @@ export function FriendsScreen() {
               )}
             </button>
           ))}
+
+          <button
+            type="button"
+            onClick={() => setEditing('new')}
+            className="flex min-h-touch flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-subtle p-2 text-muted"
+          >
+            <UserPlus size={22} aria-hidden />
+            <span className="text-[12px] font-semibold">Add person</span>
+          </button>
         </div>
       </Card>
 
@@ -102,6 +129,12 @@ export function FriendsScreen() {
         <h2 className="mb-3 font-display text-[15px] uppercase tracking-wide text-secondary">
           The crew
         </h2>
+        {users.length <= 1 && (
+          <p className="mb-3 text-[13px] leading-relaxed text-secondary">
+            Just you so far. Add a friend above, or import their code — importing someone&apos;s plan
+            adds them here automatically.
+          </p>
+        )}
         <ul className="space-y-3">
           {users.map((u) => {
             const info = plans.byUser.get(u.id)!;
@@ -153,6 +186,14 @@ export function FriendsScreen() {
                     </div>
                   )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setEditing(u)}
+                  aria-label={`Edit ${u.name}`}
+                  className="min-h-touch min-w-touch flex items-center justify-center rounded-lg text-secondary active:bg-[var(--press)]"
+                >
+                  <Pencil size={17} aria-hidden />
+                </button>
               </li>
             );
           })}
@@ -165,10 +206,10 @@ export function FriendsScreen() {
       </p>
 
       {/* Export sheet */}
-      <Sheet open={exporting} onClose={() => setExporting(false)} title={`${activeUser?.name}'s bands`}>
+      <Sheet open={exporting} onClose={() => setExporting(false)} title={`${activeUser?.name ?? 'Your'} bands`}>
         <ExportPanel
           code={exportCode}
-          filename={`warped-${activeUser?.id}-selections-${timestampSlug()}.json`}
+          filename={`warpedlb-${activeUser?.id ?? 'me'}-selections-${timestampSlug()}.json`}
           hint="Your friend opens Import a friend and scans this."
         />
       </Sheet>
@@ -177,6 +218,65 @@ export function FriendsScreen() {
       <Sheet open={importing} onClose={() => setImporting(false)} title="Import a friend's bands" size="tall">
         <ImportPanel accept={['selections']} onDone={() => setImporting(false)} />
       </Sheet>
+
+      {/* Add / edit profile sheet */}
+      <Sheet
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        title={editing === 'new' ? 'Add a person' : 'Edit profile'}
+        size="tall"
+      >
+        {editing && (
+          <>
+            <ProfileForm
+              user={editing === 'new' ? undefined : editing}
+              takenIds={users.map((u) => u.id)}
+              takenColors={users.map((u) => u.colorKey)}
+              onSave={async (u) => {
+                await putUser(u);
+                setEditing(null);
+              }}
+              onCancel={() => setEditing(null)}
+            />
+
+            {editing !== 'new' && (
+              <div className="mt-6 border-t border-subtle pt-4">
+                {blockedReason(editing) ? (
+                  <p className="text-[13px] leading-relaxed text-muted">
+                    {blockedReason(editing)}
+                  </p>
+                ) : (
+                  <Button
+                    variant="danger"
+                    className="w-full"
+                    onClick={() => {
+                      const target = editing;
+                      setEditing(null);
+                      setRemoving(target);
+                    }}
+                  >
+                    <Trash2 size={16} aria-hidden /> Remove from this phone
+                  </Button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </Sheet>
+
+      <ConfirmDialog
+        open={!!removing}
+        title={`Remove ${removing?.name ?? ''}?`}
+        message={`Removes ${removing?.name ?? 'them'}, their imported picks, and their check-ins from this phone. It does not affect their own phone. You can re-import their code any time.`}
+        confirmLabel="Remove"
+        danger
+        onConfirm={() => {
+          const id = removing?.id;
+          setRemoving(null);
+          if (id) void deleteUser(id);
+        }}
+        onCancel={() => setRemoving(null)}
+      />
     </Screen>
   );
 }

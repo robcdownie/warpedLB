@@ -9,10 +9,13 @@ import {
   Plane,
   QrCode,
   ListChecks,
+  UserPlus,
 } from 'lucide-react';
 import { Button, Card, cx } from '@/components/ui';
 import { FriendAvatar } from '@/components/FriendAvatar';
 import { WarpedWordmark } from '@/components/WarpedWordmark';
+import { ImportPanel } from '@/components/ImportPanel';
+import { ProfileForm } from '@/components/ProfileForm';
 import { useApp } from '@/store/appStore';
 import {
   prepareForOffline,
@@ -22,18 +25,24 @@ import {
   type FriendlyGroupResult,
 } from '@/domain/offlineTests';
 import { ART, APP_DISCLAIMER } from '@/config/event';
+import type { User } from '@/domain/types';
 import type { TabId } from '@/store/appStore';
 import type { MenuRoute } from '@/components/MenuDrawer';
 
-type Step = 'purpose' | 'who' | 'offline' | 'plan';
+type Step = 'welcome' | 'code' | 'profile' | 'offline' | 'plan';
 
 /**
  * First-run setup (plan §"First Fix").
  *
- * Not a splash screen: every step completes a real task — choose whose phone
- * this is, actually cache the app for offline use, and land on the screen that
- * does the next useful thing. Nothing here blocks entry to the app; each step
- * has one obvious primary action and no dead ends.
+ * Not a splash screen: every step completes a real task — paste the set-times
+ * code if you have one, create the profile this phone belongs to, actually
+ * cache the app for offline use, and land on the screen that does the next
+ * useful thing.
+ *
+ * The `code` step comes BEFORE `profile` on purpose. Importing a friend's plan
+ * creates that person on this device (domain/share/importCommit.ts), so doing
+ * it first lets the profile step ask "which of these people are you?" over a
+ * real roster instead of demanding you type a name that already exists.
  */
 export function OnboardingFlow({
   onFinish,
@@ -43,8 +52,9 @@ export function OnboardingFlow({
   const users = useApp((s) => s.users);
   const activeUserId = useApp((s) => s.settings.activeUserId);
   const completeOnboarding = useApp((s) => s.completeOnboarding);
+  const putUser = useApp((s) => s.putUser);
 
-  const [step, setStep] = useState<Step>('purpose');
+  const [step, setStep] = useState<Step>('welcome');
   const [picked, setPicked] = useState<string | null>(null);
   /** True only when the user took the "I've used this app before" door. */
   const [returning, setReturning] = useState(false);
@@ -55,10 +65,19 @@ export function OnboardingFlow({
     headingRef.current?.focus();
   }, [step]);
 
-  const chosenUser = users.find((u) => u.id === (picked ?? activeUserId));
+  const chosenId = picked ?? (activeUserId || null);
+  const chosenUser = users.find((u) => u.id === chosenId);
+
+  const afterProfile = () => setStep(returning ? 'plan' : 'offline');
 
   const finish = async (dest: { tab?: TabId; menu?: MenuRoute }) => {
-    await completeOnboarding(picked ?? activeUserId);
+    // Defensive: App.tsx bounces straight back here if activeUserId doesn't
+    // resolve, so finishing without a real profile would be an infinite loop.
+    if (!chosenUser) {
+      setStep('profile');
+      return;
+    }
+    await completeOnboarding(chosenUser.id);
     onFinish(dest);
   };
 
@@ -67,26 +86,33 @@ export function OnboardingFlow({
       <div className="mx-auto flex w-full max-w-[520px] flex-1 flex-col px-5 pb-[calc(var(--safe-bottom)+1.5rem)] pt-[calc(var(--safe-top)+1.25rem)]">
         <StepDots step={step} />
 
-        {step === 'purpose' && (
+        {step === 'welcome' && (
           <PurposeStep
             headingRef={headingRef}
-            onStart={() => setStep('who')}
+            onStart={() => setStep('code')}
             onReturning={() => {
               setReturning(true);
-              setStep('who');
+              setStep('profile');
             }}
           />
         )}
 
-        {step === 'who' && (
-          <WhoStep
+        {step === 'code' && (
+          <CodeStep headingRef={headingRef} onContinue={() => setStep('profile')} />
+        )}
+
+        {step === 'profile' && (
+          <ProfileStep
             headingRef={headingRef}
             users={users}
             picked={picked}
             onPick={setPicked}
-            // A returning user still has to say whose phone this is, but they
-            // should be told nothing they've saved is about to be replaced.
-            onContinue={() => setStep(returning ? 'plan' : 'offline')}
+            onCreate={async (u) => {
+              await putUser(u);
+              setPicked(u.id);
+              afterProfile();
+            }}
+            onContinue={afterProfile}
             returning={returning}
           />
         )}
@@ -112,7 +138,7 @@ export function OnboardingFlow({
   );
 }
 
-const STEPS: Step[] = ['purpose', 'who', 'offline', 'plan'];
+const STEPS: Step[] = ['welcome', 'code', 'profile', 'offline', 'plan'];
 
 function StepDots({ step }: { step: Step }) {
   const i = STEPS.indexOf(step);
@@ -149,7 +175,7 @@ function Heading({
   );
 }
 
-// ---------------------------------------------------------------- 1. purpose
+// --------------------------------------------------------------- 1. welcome
 function PurposeStep({
   headingRef,
   onStart,
@@ -250,28 +276,118 @@ function Benefit({
   );
 }
 
-// -------------------------------------------------------------------- 2. who
-function WhoStep({
+// ------------------------------------------------------------------- 2. code
+/**
+ * The set-times code, offered as the first real action in the app.
+ *
+ * Warped doesn't publish stage times in advance, so a fresh install has a full
+ * lineup and an empty schedule. One person typing the board and sharing a code
+ * is the difference between a useful app and a band list, which is why this is
+ * step two rather than buried in a menu.
+ *
+ * ImportPanel is reused verbatim: scan / paste / file, validation, a preview of
+ * exactly what changes, and rollback all come for free — and none of it needs
+ * an active profile, which is why this can run before the profile step.
+ */
+function CodeStep({
+  headingRef,
+  onContinue,
+}: {
+  headingRef: React.RefObject<HTMLHeadingElement>;
+  onContinue: () => void;
+}) {
+  return (
+    <>
+      <Heading headingRef={headingRef}>Got a set-times code?</Heading>
+      <p className="mt-2 text-[15px] leading-relaxed text-secondary">
+        Warped posts stage times on a board right before music starts. If someone has already typed
+        them in — check the thread you came from — paste their code here and your whole weekend
+        fills in. Nothing is saved until you&apos;ve seen exactly what changes.
+      </p>
+
+      <Card className="mt-5 p-4">
+        <ImportPanel accept={['schedule', 'selections']} onDone={onContinue} />
+      </Card>
+
+      <div className="flex-1" />
+      <Button variant="ghost" className="mt-6 w-full py-3 text-[15px]" onClick={onContinue}>
+        I don&apos;t have a code — skip for now
+      </Button>
+      <p className="mt-1 text-center text-[12px] text-muted">
+        You can paste one any time, or type the board in yourself.
+      </p>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------- 3. profile
+/**
+ * Who is holding this phone. Two shapes, because the roster ships empty:
+ *
+ * - nobody on the device yet → create a profile
+ * - somebody already here (imported a plan in the previous step, or a returning
+ *   user) → pick yourself from the list, or add a new person
+ *
+ * Whichever path, this step is the only way out of onboarding — App.tsx will
+ * not show the app until activeUserId resolves to a real user.
+ */
+function ProfileStep({
   headingRef,
   users,
   picked,
   onPick,
+  onCreate,
   onContinue,
   returning,
 }: {
   headingRef: React.RefObject<HTMLHeadingElement>;
-  users: { id: string; name: string; initials: string; avatar: string | null; colorKey: string }[];
+  users: User[];
   picked: string | null;
   onPick: (id: string) => void;
+  onCreate: (u: User) => void | Promise<void>;
   onContinue: () => void;
   returning: boolean;
 }) {
+  const [creating, setCreating] = useState(false);
   const chosen = users.find((u) => u.id === picked);
+  const showForm = users.length === 0 || creating;
+
+  if (showForm) {
+    return (
+      <>
+        <Heading headingRef={headingRef}>
+          {users.length === 0 ? 'Set up your profile' : 'Add yourself'}
+        </Heading>
+        <p className="mt-2 text-[15px] leading-relaxed text-secondary">
+          Just a name and a colour so your picks are yours and your friends can tell you apart. No
+          account, no email, no password.
+        </p>
+
+        <Card className="mt-5 p-4">
+          <ProfileForm
+            takenIds={users.map((u) => u.id)}
+            takenColors={users.map((u) => u.colorKey)}
+            onSave={onCreate}
+            onCancel={users.length ? () => setCreating(false) : undefined}
+            submitLabel="Continue"
+          />
+        </Card>
+
+        <div className="flex-1" />
+        <p className="mt-6 text-center text-[12px] leading-relaxed text-muted">
+          Your group information stays on this device unless you choose to share an offline code.
+        </p>
+      </>
+    );
+  }
+
   return (
     <>
-      <Heading headingRef={headingRef}>Who&apos;s using this phone?</Heading>
+      <Heading headingRef={headingRef}>Which one is you?</Heading>
       <p className="mt-2 text-[15px] text-secondary">
-        Your picks are saved against this profile. No password, no email — just tap a name.
+        {returning
+          ? 'Pick the profile this phone belongs to.'
+          : 'These people came from the code you imported. Tap whichever one is you.'}
       </p>
 
       <div className="mt-6 space-y-2.5" role="radiogroup" aria-label="Choose your profile">
@@ -289,11 +405,27 @@ function WhoStep({
                 : 'border-subtle bg-[var(--surface-card)]',
             )}
           >
-            <FriendAvatar user={u as never} size={52} ring />
+            <FriendAvatar user={u} size={52} ring />
             <span className="flex-1 font-display text-[19px] text-primary">{u.name}</span>
             {picked === u.id && <Check size={22} className="text-warp-pink" aria-hidden />}
           </button>
         ))}
+
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="flex w-full items-center gap-3 rounded-2xl border-2 border-dashed border-subtle p-4 text-left"
+        >
+          <span className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-[var(--surface-sunken)] text-muted">
+            <UserPlus size={22} aria-hidden />
+          </span>
+          <span className="flex-1">
+            <span className="block font-display text-[17px] text-primary">I&apos;m not listed</span>
+            <span className="block text-[13px] leading-snug text-secondary">
+              Add yourself as a new person.
+            </span>
+          </span>
+        </button>
       </div>
 
       {chosen && (
@@ -320,7 +452,7 @@ function WhoStep({
   );
 }
 
-// ---------------------------------------------------------------- 3. offline
+// --------------------------------------------------------------- 4. offline
 function OfflineStep({
   headingRef,
   onContinue,
@@ -434,7 +566,7 @@ function OfflineStep({
   );
 }
 
-// ------------------------------------------------------------------- 4. plan
+// ------------------------------------------------------------------- 5. plan
 function PlanStep({
   headingRef,
   userName,

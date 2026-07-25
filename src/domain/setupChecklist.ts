@@ -91,9 +91,9 @@ export function setupState(ctx: {
         ? schedule.saturday.status === 'complete' && schedule.sunday.status === 'complete'
           ? 'Set times complete'
           : 'Set times partly entered'
-        : 'Import or enter set times',
+        : 'Paste or enter set times',
       schedule.saturday.status === 'complete' || schedule.sunday.status === 'complete',
-      'Warped posts stage times close to the show — import them or type them in.',
+      'Warped posts stage times on a board close to showtime. Paste a code someone shared, or type them in.',
     ),
     mk(
       'friends',

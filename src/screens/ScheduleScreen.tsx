@@ -92,14 +92,14 @@ export function ScheduleScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => v
             Icon={CalendarDays}
             image={ART.emptySchedule}
             title="No set times yet"
-            message="Warped releases stage times close to the show. Enter them here fast, or import them, and your day builds itself."
+            message="Warped posts stage times on a board close to showtime. Paste a code someone else already typed in, or enter them yourself — either way your day builds itself."
             action={
               <div className="mt-1 flex gap-2">
-                <Button variant="yellow" onClick={() => setView('editor')}>
-                  Enter set times
+                <Button variant="yellow" onClick={() => onOpenMenu('schedule-io')}>
+                  Paste a code
                 </Button>
-                <Button variant="secondary" onClick={() => onOpenMenu('schedule-io')}>
-                  Import
+                <Button variant="secondary" onClick={() => setView('editor')}>
+                  Enter them myself
                 </Button>
               </div>
             }

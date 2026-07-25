@@ -6,7 +6,7 @@ import { SetupCard } from '@/components/SetupCard';
 import { PlanStatusRow } from '@/components/PlanStatusRow';
 import { useScheduleStatus } from '@/hooks/useScheduleStatus';
 import { usePlanStatuses } from '@/hooks/usePlanStatus';
-import { EVENT, ART } from '@/config/event';
+import {EVENT, ART, APP_DISCLAIMER } from '@/config/event';
 import { timeUntilFestival } from '@/domain/time';
 import { selectedMainByDay } from '@/store/selectors';
 import type { TabId } from '@/store/appStore';
@@ -226,8 +226,7 @@ function PreSchedule({
       </Card>
 
       <p className="px-1 pt-3 text-center text-[11px] leading-relaxed text-muted">
-        Unofficial personal companion app. Not affiliated with or endorsed by Vans or Vans
-        Warped Tour.
+        {APP_DISCLAIMER}
       </p>
     </Screen>
   );
