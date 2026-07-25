@@ -159,8 +159,20 @@ export function NowDashboard({
               ? travelMinutes(locationById.get(previous.stageId), locationById.get(focus.stageId), crowd, omap).minutes
               : undefined
           }
+          // "also going" has to exclude people who told the app they're NOT.
+          // Every other consumer of this list drops skippers (myStops above,
+          // plannedPosition, groupTimeline, itinerary); this card missed it, so
+          // a friend whose imported plan said "skipping" showed as going on the
+          // one card people actually act on — you'd walk to a stage for someone
+          // who had already said no.
           friends={selections
-            .filter((s) => s.performanceId === focus.id && s.selected && s.userId !== activeUserId)
+            .filter(
+              (s) =>
+                s.performanceId === focus.id &&
+                s.selected &&
+                s.userId !== activeUserId &&
+                s.attendanceDecision !== 'skipping',
+            )
             .map((s) => plans.all.find((u) => u.id === s.userId))
             .filter((u): u is NonNullable<typeof u> => !!u)}
           onOpen={() => onGoTab('schedule')}
@@ -243,19 +255,26 @@ export function NowDashboard({
                   <span className="flex-1 truncate text-[13px] text-secondary">
                     {pos ? pos.label : 'Plan not imported — unknown, not free'}
                   </span>
+                  {/*
+                    This used to badge an open gap green and label it "Free",
+                    while the line beside it read "Open time (no plan yet)" —
+                    two contradictory claims, and the confident one was the one
+                    styled to be read. It is also the default state on a fresh
+                    install, where both the roster and the schedule start empty,
+                    so the first friend anyone imported showed up as free all
+                    day. Green is reserved for a check-in someone actually made.
+                  */}
                   <span
                     className={cx(
                       'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold',
-                      !pos
+                      !pos || pos.kind === 'open'
                         ? 'bg-[var(--surface-sunken)] text-muted'
                         : pos.source === 'manual'
                           ? 'bg-warp-ok/15 text-ok'
-                          : pos.kind === 'open'
-                            ? 'bg-warp-ok/15 text-ok'
-                            : 'bg-accent-soft text-accent',
+                          : 'bg-accent-soft text-accent',
                     )}
                   >
-                    {pos ? (pos.kind === 'open' && pos.source === 'planned' ? 'Free' : positionBadge(pos)) : 'Unknown'}
+                    {pos ? positionBadge(pos) : 'Unknown'}
                   </span>
                 </div>
               ))}

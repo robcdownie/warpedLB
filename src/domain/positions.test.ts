@@ -119,6 +119,17 @@ describe('check-in freshness (plan §P0-3)', () => {
     expect(positionBadge(planned)).toBe('Planned');
   });
 
+  it('never badges an open gap as free — unknown is not free', () => {
+    // A user with no timed picks is "open" at every minute of the day. NowDashboard
+    // used to render that as a green "Free" beside the label "Open time (no plan
+    // yet)" — two contradictory claims, and it was the default on a fresh install
+    // where both the roster and the schedule start empty.
+    const open = plannedPosition('nobody-here', 'saturday', hhmmToMinutes('15:20'), ctx);
+    expect(open.kind).toBe('open');
+    expect(positionBadge(open)).toBe('No known set');
+    expect(positionBadge(open).toLowerCase()).not.toContain('free');
+  });
+
   it('screen-reader labels never call a manual check-in "planned"', () => {
     const fresh = positionWithCheckin('member-1', 'saturday', hhmmToMinutes('15:20'), [checkin(6)], NOW, STALE_AFTER, ctx);
     const label = positionA11yLabel(fresh, 'Sam');

@@ -1,4 +1,5 @@
 import { Sun, Moon, Smartphone, MapPinned, Compass, ListChecks, Maximize2 } from 'lucide-react';
+import { plural } from '@/domain/plural';
 import { Screen, Card, Button, cx } from '@/components/ui';
 import { FriendAvatar } from '@/components/FriendAvatar';
 import { SetupCard } from '@/components/SetupCard';
@@ -74,7 +75,7 @@ export function SettingsScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => v
         >
           <ListChecks size={17} aria-hidden />
           {settings.dismissedTips.length
-            ? `Show the ${settings.dismissedTips.length} dismissed tips again`
+            ? `Show the ${plural(settings.dismissedTips.length, 'dismissed tip')} again`
             : 'No dismissed tips'}
         </Button>
       </Card>

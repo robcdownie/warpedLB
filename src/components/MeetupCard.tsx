@@ -58,7 +58,7 @@ export function MeetupCard({ meetup, highlight }: { meetup: MeetupSuggestion; hi
       </div>
 
       {/* Who */}
-      <div className="mt-3 flex items-center gap-1.5">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5 gap-y-1.5">
         {meetup.userIds.map((uid) => {
           const u = users.find((x) => x.id === uid);
           if (!u) return null;
@@ -70,10 +70,23 @@ export function MeetupCard({ meetup, highlight }: { meetup: MeetupSuggestion; hi
           );
         })}
         {/* "All three free" was hardcoded and became a lie the moment a plan
-            wasn't imported or a fourth person joined (plan §P1-10). */}
-        {eligibleCount > 1 && meetup.userIds.length === eligibleCount && (
-          <span className="text-[12px] font-semibold text-warp-ok">Everyone in this plan is free</span>
-        )}
+            wasn't imported or a fourth person joined (plan §P1-10).
+            The count check alone was still not enough: on a partial day this
+            asserted "everyone is free" directly above the Provisional line
+            saying those windows may not stay free, and the flat green claim is
+            the one that gets read. A gap with 71 of 76 sets untimed is unknown,
+            not free. */}
+        {eligibleCount > 1 &&
+          meetup.userIds.length === eligibleCount &&
+          (dayInfo.status === 'complete' ? (
+            <span className="text-[12px] font-semibold text-warp-ok">
+              Everyone in this plan is free
+            </span>
+          ) : (
+            <span className="text-[12px] font-semibold text-warn">
+              No known set for anyone in this plan
+            </span>
+          ))}
       </div>
 
       {/* Why */}
@@ -98,17 +111,23 @@ export function MeetupCard({ meetup, highlight }: { meetup: MeetupSuggestion; hi
           const u = users.find((x) => x.id === pu.userId);
           if (!u) return null;
           return (
-            <div key={pu.userId} className="flex items-center gap-2 text-[12px]">
+            <div key={pu.userId} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
               <FriendAvatar user={u} size={18} />
               <span className="font-semibold text-primary">{u.name}</span>
               {pu.openAfter ? (
                 <span className="text-warp-ok">open time after — no rush</span>
               ) : (
-                <span className="flex items-center gap-1 text-secondary">
-                  <LogOut size={12} aria-hidden />
-                  leave by <b className="text-primary">{formatMinutes(pu.leaveByMinute!)}</b>
-                  <ArrowRight size={11} aria-hidden />
-                  {stageName(pu.nextStageId) ?? 'next set'}
+                /* One text run, one flex item. Split across five items — icon,
+                   "leave by", the time, the arrow, the stage — nothing could
+                   wrap between them, so each text piece shrank into its own
+                   column instead. */
+                <span className="flex items-start gap-1 text-secondary">
+                  <LogOut size={12} className="mt-0.5 shrink-0" aria-hidden />
+                  <span>
+                    leave by <b className="text-primary">{formatMinutes(pu.leaveByMinute!)}</b>
+                    <ArrowRight size={11} className="mx-0.5 inline align-[-1px]" aria-hidden />
+                    {stageName(pu.nextStageId) ?? 'next set'}
+                  </span>
                 </span>
               )}
             </div>

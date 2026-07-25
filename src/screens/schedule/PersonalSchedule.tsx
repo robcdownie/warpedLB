@@ -88,11 +88,16 @@ export function PersonalSchedule({ day }: { day: DayId }) {
 
         return (
           <div key={perf.id}>
+            {/* One text run, one flex item — the icon plus three separate text
+                pieces could not wrap between themselves and squeezed into
+                columns on a narrow screen with a long stage name. */}
             {travel && (
-              <div className="flex items-center gap-1.5 py-1 pl-3 text-[12px] text-muted">
-                <Footprints size={13} aria-hidden />
-                ~{formatDuration(travel.minutes)} walk from {travel.from}
-                <span className="text-[10px]">(approx)</span>
+              <div className="flex items-start gap-1.5 py-1 pl-3 text-[12px] text-muted">
+                <Footprints size={13} className="mt-0.5 shrink-0" aria-hidden />
+                <span>
+                  ~{formatDuration(travel.minutes)} walk from {travel.from}{' '}
+                  <span className="text-[10px]">(approx)</span>
+                </span>
               </div>
             )}
             <Card className={cx('p-3', skipping && 'opacity-55')}>
@@ -116,11 +121,13 @@ export function PersonalSchedule({ day }: { day: DayId }) {
                     {stage?.name ?? 'Stage TBA'}
                   </div>
                   {window?.partial && (
-                    <div className="mt-0.5 flex items-center gap-1 text-[12px] font-semibold text-warp-pink">
-                      <Split size={12} aria-hidden />
-                      Split plan: {formatMinutes(window.start)}–{formatMinutes(window.end)}
-                      <span className="font-normal text-muted">
-                        ({formatDuration(window.end - window.start)} of the set)
+                    <div className="mt-0.5 flex items-start gap-1 text-[12px] font-semibold text-warp-pink">
+                      <Split size={12} className="mt-0.5 shrink-0" aria-hidden />
+                      <span>
+                        Split plan: {formatMinutes(window.start)}–{formatMinutes(window.end)}{' '}
+                        <span className="font-normal text-muted">
+                          ({formatDuration(window.end - window.start)} of the set)
+                        </span>
                       </span>
                     </div>
                   )}

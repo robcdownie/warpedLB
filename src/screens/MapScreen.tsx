@@ -244,6 +244,27 @@ export function MapScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => void }
         </div>
       </div>
 
+      {/*
+        In flow above the map, not floating over it. `map.verified` defaults to
+        false, so this banner is permanent on every fresh install — and as a
+        floating overlay it sat on top of the map's top strip forever, hiding
+        stage labels and friend pins underneath it (pins render inside
+        MapCanvas, which has no z-index, so they were untappable too). A hidden
+        friend pin reads as a lost friend. One line of height is the cheaper
+        trade. The one-time tip below can still float, because it gets dismissed.
+      */}
+      {!mapMeta.verified && (
+        <button
+          type="button"
+          onClick={() => onOpenMenu('map-setup')}
+          className="mx-3 mb-1.5 flex items-center gap-1.5 rounded-lg bg-warp-warn/95 px-2.5 py-1.5 text-left text-[12px] font-semibold text-warp-ink"
+        >
+          <TriangleAlert size={13} className="shrink-0" aria-hidden />
+          <span className="flex-1">Reference layout — check against the official 2026 map.</span>
+          <span className="shrink-0 underline">Verify</span>
+        </button>
+      )}
+
       {/* Map */}
       <div className="relative min-h-0 flex-1 px-3">
         <MapCanvas
@@ -308,19 +329,6 @@ export function MapScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => void }
             </FirstUseTip>
           </div>
 
-          {/* The map is a traced reference until a human confirms it against the
-              official 2026 map. A cached image is not a verified one. */}
-          {!mapMeta.verified && (
-            <button
-              type="button"
-              onClick={() => onOpenMenu('map-setup')}
-              className="pointer-events-auto flex w-full items-center gap-1.5 rounded-lg bg-warp-warn/95 px-2.5 py-1.5 text-left text-[12px] font-semibold text-warp-ink shadow-lg"
-            >
-              <TriangleAlert size={13} className="shrink-0" aria-hidden />
-              <span className="flex-1">Reference layout — check against the official 2026 map.</span>
-              <span className="underline">Verify</span>
-            </button>
-          )}
         </div>
 
         {/* Empty hint if map has nothing */}

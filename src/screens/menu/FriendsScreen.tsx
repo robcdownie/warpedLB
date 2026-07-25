@@ -10,6 +10,7 @@ import { ProfileForm } from '@/components/ProfileForm';
 import { useApp } from '@/store/appStore';
 import { usePlanStatuses } from '@/hooks/usePlanStatus';
 import { planStatusLabel, planStatusBadge } from '@/domain/planStatus';
+import { plural } from '@/domain/plural';
 import { encodeSelections } from '@/domain/share/payloads';
 import { timestampSlug } from '@/domain/share/files';
 import type { User } from '@/domain/types';
@@ -149,7 +150,8 @@ export function FriendsScreen() {
           Share my bands
         </h2>
         <p className="mb-3 text-[13px] text-secondary">
-          You have <b>{myCount}</b> bands selected. Send them to {othersLabel} by QR or code.
+          You have <b>{plural(myCount, 'band')}</b> selected. Send them to {othersLabel} by QR or
+          code.
         </p>
         <div className="grid grid-cols-2 gap-2">
           <Button variant="yellow" className="whitespace-nowrap text-[14px]" onClick={() => setExporting(true)} disabled={!myCount}>

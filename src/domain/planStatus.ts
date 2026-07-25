@@ -1,5 +1,6 @@
 import type { User, AppSettings, UserPlanStatus, Selection } from './types';
 import { PLAN_STALE_HOURS } from './settings';
+import { plural } from './plural';
 
 /**
  * Whether a person's plan is actually on this device (plan §P0-2).
@@ -99,9 +100,9 @@ export function eligibleUsers(
 export function planStatusLabel(info: PlanInfo): string {
   switch (info.status) {
     case 'local':
-      return `${info.selectionCount} band${info.selectionCount === 1 ? '' : 's'} · this phone`;
+      return `${plural(info.selectionCount, 'band')} · this phone`;
     case 'imported':
-      return `${info.selectionCount} bands, ${relativeHours(info.ageHours)}`;
+      return `${plural(info.selectionCount, 'band')}, ${relativeHours(info.ageHours)}`;
     case 'stale':
       return `Plan may be outdated — imported ${relativeHours(info.ageHours)}`;
     case 'placeholder':

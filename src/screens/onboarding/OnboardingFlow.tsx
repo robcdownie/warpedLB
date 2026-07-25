@@ -15,6 +15,8 @@ import { Button, Card, cx } from '@/components/ui';
 import { FriendAvatar } from '@/components/FriendAvatar';
 import { WarpedWordmark } from '@/components/WarpedWordmark';
 import { ProfileForm } from '@/components/ProfileForm';
+import { InstallFirstCard } from '@/components/InstallFirstCard';
+import { useInstallState } from '@/hooks/useInstallState';
 import { useApp } from '@/store/appStore';
 import {
   prepareForOffline,
@@ -206,7 +208,14 @@ function PurposeStep({
       </ul>
 
       <div className="flex-1" />
-      <p className="mt-6 text-[13px] leading-relaxed text-muted">
+
+      {/* Above Get Started on purpose — installing after setup risks leaving the
+          profile behind in the Safari tab it was created in. */}
+      <div className="mt-6">
+        <InstallFirstCard />
+      </div>
+
+      <p className="text-[13px] leading-relaxed text-muted">
         No account required. Your data stays on your phone.
       </p>
       <div className="mt-3 space-y-2">
@@ -413,6 +422,7 @@ function OfflineStep({
   onContinue: () => void;
 }) {
   const updateSettings = useApp((s) => s.updateSettings);
+  const { installed } = useInstallState();
   const [groups, setGroups] = useState<FriendlyGroupResult[] | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -480,15 +490,38 @@ function OfflineStep({
         </ul>
       </Card>
 
-      {ready && (
+      {/*
+        Files cached inside a browser tab are not the same promise as an
+        installed app, so "Ready for airplane mode" would be an overclaim here:
+        there is no app to reopen, and a closed tab is easy to lose. Say what is
+        actually true in each case.
+      */}
+      {ready && installed && (
         <div className="mt-4 rounded-xl border border-warp-ok/40 bg-warp-ok/10 p-3">
           <p className="flex items-center gap-2 font-display text-[15px] text-ok">
             <Check size={17} aria-hidden /> Ready for airplane mode
           </p>
           <p className="mt-1.5 flex items-start gap-2 text-[13px] leading-relaxed text-primary">
             <Plane size={15} className="mt-0.5 shrink-0 text-ok" aria-hidden />
-            Before the festival, close the app, turn on Airplane Mode, and reopen it once.
+            <span>
+              Before the festival, close the app, turn on Airplane Mode, and reopen it once.
+            </span>
           </p>
+        </div>
+      )}
+
+      {ready && !installed && (
+        <div className="mt-4 rounded-xl border border-warp-yellow/60 bg-warp-yellow/10 p-3">
+          <p className="flex items-center gap-2 font-display text-[15px] text-warn">
+            <Check size={17} aria-hidden /> Saved — but not on your Home Screen yet
+          </p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-primary">
+            Everything is cached in this browser. To actually have it at the festival you still need
+            to add it to your Home Screen — close this tab and you may not find your way back.
+          </p>
+          <div className="mt-2.5">
+            <InstallFirstCard />
+          </div>
         </div>
       )}
 

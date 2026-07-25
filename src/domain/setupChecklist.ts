@@ -1,6 +1,7 @@
 import type { AppSettings, Performance, Selection, User } from './types';
 import { allDaysScheduleInfo, hasAnySchedule } from './scheduleStatus';
 import { planInfo } from './planStatus';
+import { plural } from './plural';
 
 /**
  * The "Finish Setting Up" checklist (plan §"Persistent setup checklist").
@@ -81,7 +82,7 @@ export function setupState(ctx: {
     ),
     mk(
       'bands',
-      mySelections ? `${mySelections} bands selected` : 'Pick your bands',
+      mySelections ? `${plural(mySelections, 'band')} selected` : 'Pick your bands',
       mySelections > 0,
       'Your Must See, Want to See and Maybe picks.',
     ),

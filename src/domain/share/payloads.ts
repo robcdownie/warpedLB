@@ -11,6 +11,7 @@ import type {
   DayId,
 } from '@/domain/types';
 import { encodeEnvelope, type Envelope, type PayloadType } from './codec';
+import { plural } from '../plural';
 
 // Compact payload shapes. Deflate handles redundancy, but short field names keep
 // QR codes small. Codes are arrays-of-tuples with documented positions.
@@ -201,7 +202,7 @@ export function previewImport(env: Envelope, cur: CurrentState): ImportPreview {
     const d = env.data as SelectionsData;
     const { user, selections } = selectionsFromData(d);
     const existingUser = cur.users.find((u) => u.id === user.id);
-    base.lines.push(`${user.name}'s selections: ${selections.length} bands`);
+    base.lines.push(`${user.name}'s selections: ${plural(selections.length, 'band')}`);
     const knownPerf = new Set(cur.performances.map((p) => p.id));
     const unknown = selections.filter((s) => !knownPerf.has(s.performanceId));
     if (unknown.length) base.warnings.push(`${unknown.length} selection(s) reference unknown sets and will be skipped.`);

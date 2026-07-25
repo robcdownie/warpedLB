@@ -94,6 +94,29 @@ async function functionalPass(base) {
     .catch(() => false);
   check('first run shows the welcome flow (plan §First Fix)', onboardingShown);
 
+  // 0a. Install-before-setup guidance. iOS has shipped versions where a Home
+  // Screen web app got a different storage jar from the Safari tab it was added
+  // from, which would strand a profile in a tab the user never reopens. The
+  // advice has to appear BEFORE Get Started or it isn't advice, it's trivia.
+  const install = await page.evaluate(() => {
+    const text = document.body.innerText;
+    const card = [...document.querySelectorAll('h2')].find((h) =>
+      /Home Screen/i.test(h.textContent),
+    );
+    const btn = [...document.querySelectorAll('button')].find((b) =>
+      b.textContent.trim().includes('Get Started'),
+    );
+    return {
+      mentioned: /Home Screen/i.test(text),
+      precedesStart:
+        !!card &&
+        !!btn &&
+        !!(card.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING),
+    };
+  });
+  check('setup tells you to add it to your Home Screen', install.mentioned);
+  check('that guidance comes before Get Started', install.precedesStart);
+
   // 0b. THE PUBLIC-BUILD GUARANTEE: a fresh install ships nobody. This has to
   // be measured BEFORE skipOnboarding, which creates its own profiles.
   const preSetup = await page.evaluate(() => window.__WLB__.counts());

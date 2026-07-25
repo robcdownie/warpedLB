@@ -51,7 +51,14 @@ export function positionBadge(pos: PlannedPosition): string {
     case 'unknown':
       return 'Plan unknown';
     default:
-      return pos.kind === 'traveling' ? 'Traveling' : 'Planned';
+      if (pos.kind === 'traveling') return 'Traveling';
+      // An open gap is the absence of a known set — not a plan, and definitely
+      // not confirmed free time. "Planned" overstated it, and NowDashboard used
+      // to render it as a green "Free", which is the exact claim the
+      // "unknown ≠ free" rule forbids. Wording matches GroupScreen's free-time
+      // caveat on purpose.
+      if (pos.kind === 'open') return 'No known set';
+      return 'Planned';
   }
 }
 

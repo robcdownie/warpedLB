@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Search, X, MapPin, Clock, Check, Music, Unplug, Filter, Star } from 'lucide-react';
 import { Screen, cx } from '@/components/ui';
+import { plural } from '@/domain/plural';
 import { FriendAvatar } from '@/components/FriendAvatar';
 import { PriorityBadge } from '@/components/PriorityControl';
 import { BandDetailSheet } from './bands/BandDetailSheet';
@@ -434,7 +435,10 @@ function BandCard({
       </span>
 
       {friends.length > 0 && (
-        <span className="flex shrink-0 -space-x-2" aria-label={`${friends.length} friends selected`}>
+        <span
+          className="flex shrink-0 -space-x-2"
+          aria-label={`${plural(friends.length, 'friend')} also picked this`}
+        >
           {friends.slice(0, 3).map((f) => (
             <FriendAvatar key={f.id} user={f as never} size={24} className="ring-2 ring-[var(--surface-card)]" />
           ))}

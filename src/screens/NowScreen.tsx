@@ -9,6 +9,7 @@ import { usePlanStatuses } from '@/hooks/usePlanStatus';
 import {EVENT, ART, APP_DISCLAIMER } from '@/config/event';
 import { timeUntilFestival } from '@/domain/time';
 import { selectedMainByDay } from '@/store/selectors';
+import { plural } from '@/domain/plural';
 import type { TabId } from '@/store/appStore';
 import type { MenuRoute } from '@/components/MenuDrawer';
 import { NowDashboard } from './now/NowDashboard';
@@ -26,6 +27,11 @@ export function NowScreen({
   const { any } = useScheduleStatus();
   const dismissedTips = useApp((s) => s.settings.dismissedTips);
   const dismissTip = useApp((s) => s.dismissTip);
+  // The children run their own clocks, which re-render them and not this
+  // component — so without a tick here the festival could end while the Now tab
+  // kept showing a countdown until some unrelated store write happened to
+  // repaint it. A minute is plenty for a once-per-weekend transition.
+  useClock(60_000);
 
   // Once the gates have closed for the last time, a countdown and a "what's
   // next" dashboard are both wrong. Show the recap instead — but only until
@@ -167,7 +173,7 @@ function PreSchedule({
             ) : (
               <>
                 <span className="block text-[14px] font-semibold text-primary">
-                  {satCount + sunCount} bands picked — waiting on set times
+                  {plural(satCount + sunCount, 'band')} picked — waiting on set times
                 </span>
                 <span className="block text-[13px] text-muted">
                   Import or enter times and your next set shows here.
