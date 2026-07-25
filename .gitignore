@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vite
+coverage
+shots
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+scripts/.art-raw

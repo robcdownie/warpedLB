@@ -1,0 +1,261 @@
+@import 'tailwindcss';
+@import '@fontsource/archivo-black/400.css';
+
+/*
+  Warped Long Beach Companion — theme.
+  Palette sampled from the supplied Vans Warped Long Beach artwork:
+  saturated blue, bright yellow, hot pink, black, white, small orange accents.
+*/
+
+@theme {
+  /* Brand blues */
+  --color-warp-blue-50: #eaf1fb;
+  --color-warp-blue-100: #c8dbf3;
+  --color-warp-blue-200: #93b4e6;
+  --color-warp-blue-300: #5b8ad6;
+  --color-warp-blue-400: #2f66c4;
+  --color-warp-blue-500: #1f5fa8;
+  --color-warp-blue-600: #164a8c;
+  --color-warp-blue-700: #0f3b74;
+  --color-warp-blue-800: #0b2f6b;
+  --color-warp-blue-900: #082450;
+  --color-warp-blue-950: #05193a;
+
+  /* Accents */
+  --color-warp-yellow: #ffd21e;
+  --color-warp-yellow-dark: #e8b800;
+  --color-warp-pink: #ff2d78;
+  --color-warp-pink-dark: #d61e60;
+  --color-warp-orange: #ff7a1a;
+  --color-warp-teal: #17b3a3;
+
+  /* Semantic */
+  --color-warp-ink: #0a0f1c;
+  --color-warp-danger: #ff4d4d;
+  --color-warp-warn: #ffb020;
+  --color-warp-ok: #2ec16b;
+
+  --font-display: 'Archivo Black', system-ui, sans-serif;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+
+  --radius-card: 1rem;
+}
+
+/* Light/dark surface tokens driven by a data attribute + media query. */
+:root {
+  /* Safe-area insets as vars so the screenshot harness can inject them
+     (headless Chromium resolves env() to 0, which is how the standalone-mode
+     double-inset bug shipped unseen). Components use these, never raw env(). */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  /* Height of the fixed BottomNav (52px of content + the home-indicator
+     inset). Anything that must stay tappable above it clears exactly this —
+     guessing with a padding value is how the map controls ended up off-screen. */
+  --nav-h: calc(var(--safe-bottom) + 52px);
+  --surface-app: #f2f5fb;
+  --surface-card: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #e9eef7;
+  --text-primary: #0a0f1c;
+  --text-secondary: #4a5568;
+  --text-muted: #6b7280;
+  --border-subtle: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --nav-bg: #0a0f1c;
+  /* Readable-on-surface accents (brand blue is too dark for dark surfaces). */
+  --accent-text: #1f5fa8;
+  --ok-text: #1e9e54;
+  --warn-text: #9a7a00;
+  --danger-text: #d43c3c;
+  /* Press/hover wash that is visible on both themes. */
+  --press: rgba(0, 0, 0, 0.06);
+  /* Selected-chip fill — needs a dark-mode boost to stay legible against
+     navy chip surfaces (blue-500 on blue-800 was nearly invisible). */
+  --chip-on: #1f5fa8;
+  --chip-on-border: #1f5fa8;
+  /* Switch track when OFF — must read neutral in both themes. */
+  --track-off: #cbd5e1;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --chip-on: #2f66c4;
+  --chip-on-border: #5b8ad6;
+  --track-off: #33415e;
+  --surface-app: #05193a;
+  --surface-card: #0b2f6b;
+  --surface-raised: #0f3b74;
+  --surface-sunken: #082450;
+  --text-primary: #f4f8ff;
+  --text-secondary: #b9c9e6;
+  --text-muted: #8ea6cf;
+  --border-subtle: #164a8c;
+  --border-strong: #1f5fa8;
+  --nav-bg: #05122b;
+  --accent-text: #93b4e6;
+  --ok-text: #3fd47f;
+  --warn-text: #ffd21e;
+  --danger-text: #ff6b6b;
+  --press: rgba(255, 255, 255, 0.08);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --chip-on: #2f66c4;
+    --chip-on-border: #5b8ad6;
+    --track-off: #33415e;
+    --surface-app: #05193a;
+    --surface-card: #0b2f6b;
+    --surface-raised: #0f3b74;
+    --surface-sunken: #082450;
+    --text-primary: #f4f8ff;
+    --text-secondary: #b9c9e6;
+    --text-muted: #8ea6cf;
+    --border-subtle: #164a8c;
+    --border-strong: #1f5fa8;
+    --nav-bg: #05122b;
+    --accent-text: #93b4e6;
+    --ok-text: #3fd47f;
+    --warn-text: #ffd21e;
+    --danger-text: #ff6b6b;
+    --press: rgba(255, 255, 255, 0.08);
+    color-scheme: dark;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* iOS Home Screen installs resolve `height: 100%` against a viewport that can
+   exclude the home-indicator strip, so the app laid out ~60px short and the
+   fixed bottom nav floated above the physical bottom of the screen. dvh
+   tracks the real viewport, which recovers that band. */
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}
+
+/* The document canvas — what iOS paints in any strip the layout viewport
+   still doesn't cover (e.g. a Home Screen icon added before these settings
+   existed, which keeps its cached launch metadata until it's re-added).
+   Painting it in the nav colour makes such a strip read as part of the bar
+   rather than as a gap of page background below it. */
+html {
+  background: var(--nav-bg);
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--surface-app);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+
+/* Safe-area helpers for iPhone notch / home indicator. */
+@utility pt-safe {
+  padding-top: var(--safe-top);
+}
+@utility pb-safe {
+  padding-bottom: var(--safe-bottom);
+}
+@utility pl-safe {
+  padding-left: var(--safe-left);
+}
+@utility pr-safe {
+  padding-right: var(--safe-right);
+}
+@utility min-h-touch {
+  min-height: 44px;
+}
+@utility min-w-touch {
+  min-width: 44px;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: 0.01em;
+}
+
+/* Surface utility classes bound to the theme tokens. */
+.surface-app {
+  background: var(--surface-app);
+}
+.surface-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+}
+.surface-raised {
+  background: var(--surface-raised);
+}
+.text-primary {
+  color: var(--text-primary);
+}
+.text-secondary {
+  color: var(--text-secondary);
+}
+.text-muted {
+  color: var(--text-muted);
+}
+.border-subtle {
+  border-color: var(--border-subtle);
+}
+/* Theme-aware accent/status text (readable on both light and dark surfaces). */
+.text-accent {
+  color: var(--accent-text);
+}
+.bg-accent-soft {
+  background: color-mix(in srgb, var(--accent-text) 14%, transparent);
+}
+.text-ok {
+  color: var(--ok-text);
+}
+.text-warn {
+  color: var(--warn-text);
+}
+.text-danger {
+  color: var(--danger-text);
+}
+
+/* Hide scrollbars on horizontal chip rows but keep scrollability. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Right-edge fade on horizontal chip rows — hints that more chips scroll. */
+.scroll-fade-r {
+  mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+}
+/* Both-edge fade for chip rows that scroll in either direction. */
+.scroll-fade-x {
+  mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 28px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 28px), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
