@@ -103,6 +103,27 @@ async function functionalPass(base) {
     `users=${preSetup.users}`,
   );
 
+  // 0c. Setup must never ask for something a first-time visitor cannot have.
+  // A "paste a set-times code" step used to sit at position two; someone
+  // arriving from a link has no code, read it as a hard requirement, and the
+  // rational response was to close the app. The prompt now lives on the Enter
+  // Times board instead, where it saves work rather than blocking it.
+  await page.click('button:has-text("Get Started")').catch(() => {});
+  await page.waitForTimeout(500);
+  const gate = await page.evaluate(() => ({
+    body: document.body.innerText,
+  }));
+  check(
+    'setup never demands a set-times code up front',
+    !/set-times code\?|Got a code|paste their code here/i.test(gate.body),
+    gate.body.slice(0, 120).replace(/\s+/g, ' '),
+  );
+  check(
+    'step after Welcome asks who this phone belongs to',
+    /set up your profile|which one is you|add yourself/i.test(gate.body),
+    gate.body.slice(0, 120).replace(/\s+/g, ' '),
+  );
+
   await skipOnboarding(page);
   const onboardingSticks = await page.evaluate(() => window.__WLB__.settings().onboardingComplete);
   check('onboarding completion is stored', onboardingSticks);

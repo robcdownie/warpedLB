@@ -64,6 +64,23 @@ export function ScheduleScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => v
 
       {view === 'editor' && (
         <>
+          {/*
+            The shortcut belongs here, not in onboarding. Asking a brand-new user
+            for a set-times code before they've seen the app reads as a
+            requirement they can't meet; offering it to someone already looking
+            at an empty board reads as a favour.
+          */}
+          <FirstUseTip id="board-code">
+            Typing the whole board is a chore. If somebody already did it, you can{' '}
+            <button
+              type="button"
+              onClick={() => onOpenMenu('schedule-io')}
+              className="font-bold text-warn underline underline-offset-2"
+            >
+              paste their code instead
+            </button>{' '}
+            and skip all of this.
+          </FirstUseTip>
           <div className="mb-3 flex rounded-xl bg-[var(--surface-sunken)] p-0.5">
             <ModeTab active={entryMode === 'board'} onClick={() => setEntryMode('board')}>
               <LayoutList size={15} aria-hidden /> Board

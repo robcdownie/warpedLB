@@ -14,7 +14,6 @@ import {
 import { Button, Card, cx } from '@/components/ui';
 import { FriendAvatar } from '@/components/FriendAvatar';
 import { WarpedWordmark } from '@/components/WarpedWordmark';
-import { ImportPanel } from '@/components/ImportPanel';
 import { ProfileForm } from '@/components/ProfileForm';
 import { useApp } from '@/store/appStore';
 import {
@@ -29,20 +28,21 @@ import type { User } from '@/domain/types';
 import type { TabId } from '@/store/appStore';
 import type { MenuRoute } from '@/components/MenuDrawer';
 
-type Step = 'welcome' | 'code' | 'profile' | 'offline' | 'plan';
+type Step = 'welcome' | 'profile' | 'offline' | 'plan';
 
 /**
  * First-run setup (plan §"First Fix").
  *
- * Not a splash screen: every step completes a real task — paste the set-times
- * code if you have one, create the profile this phone belongs to, actually
- * cache the app for offline use, and land on the screen that does the next
- * useful thing.
+ * Not a splash screen: every step completes a real task — create the profile
+ * this phone belongs to, actually cache the app for offline use, and land on the
+ * screen that does the next useful thing.
  *
- * The `code` step comes BEFORE `profile` on purpose. Importing a friend's plan
- * creates that person on this device (domain/share/importCommit.ts), so doing
- * it first lets the profile step ask "which of these people are you?" over a
- * real roster instead of demanding you type a name that already exists.
+ * There is deliberately NO "paste a set-times code" step here. It used to be
+ * step two, and it tested badly: someone arriving from a link has no code yet,
+ * so being asked for one up front reads as a requirement they can't meet, and
+ * the honest reaction is to close the app. The prompt now lives where it's an
+ * answer rather than a gate — on the Enter Times board (ScheduleScreen), next to
+ * the work it saves you.
  */
 export function OnboardingFlow({
   onFinish,
@@ -89,16 +89,12 @@ export function OnboardingFlow({
         {step === 'welcome' && (
           <PurposeStep
             headingRef={headingRef}
-            onStart={() => setStep('code')}
+            onStart={() => setStep('profile')}
             onReturning={() => {
               setReturning(true);
               setStep('profile');
             }}
           />
-        )}
-
-        {step === 'code' && (
-          <CodeStep headingRef={headingRef} onContinue={() => setStep('profile')} />
         )}
 
         {step === 'profile' && (
@@ -138,7 +134,7 @@ export function OnboardingFlow({
   );
 }
 
-const STEPS: Step[] = ['welcome', 'code', 'profile', 'offline', 'plan'];
+const STEPS: Step[] = ['welcome', 'profile', 'offline', 'plan'];
 
 function StepDots({ step }: { step: Step }) {
   const i = STEPS.indexOf(step);
@@ -276,57 +272,13 @@ function Benefit({
   );
 }
 
-// ------------------------------------------------------------------- 2. code
-/**
- * The set-times code, offered as the first real action in the app.
- *
- * Warped doesn't publish stage times in advance, so a fresh install has a full
- * lineup and an empty schedule. One person typing the board and sharing a code
- * is the difference between a useful app and a band list, which is why this is
- * step two rather than buried in a menu.
- *
- * ImportPanel is reused verbatim: scan / paste / file, validation, a preview of
- * exactly what changes, and rollback all come for free — and none of it needs
- * an active profile, which is why this can run before the profile step.
- */
-function CodeStep({
-  headingRef,
-  onContinue,
-}: {
-  headingRef: React.RefObject<HTMLHeadingElement>;
-  onContinue: () => void;
-}) {
-  return (
-    <>
-      <Heading headingRef={headingRef}>Got a set-times code?</Heading>
-      <p className="mt-2 text-[15px] leading-relaxed text-secondary">
-        Warped posts stage times on a board right before music starts. If someone has already typed
-        them in — check the thread you came from — paste their code here and your whole weekend
-        fills in. Nothing is saved until you&apos;ve seen exactly what changes.
-      </p>
-
-      <Card className="mt-5 p-4">
-        <ImportPanel accept={['schedule', 'selections']} onDone={onContinue} />
-      </Card>
-
-      <div className="flex-1" />
-      <Button variant="ghost" className="mt-6 w-full py-3 text-[15px]" onClick={onContinue}>
-        I don&apos;t have a code — skip for now
-      </Button>
-      <p className="mt-1 text-center text-[12px] text-muted">
-        You can paste one any time, or type the board in yourself.
-      </p>
-    </>
-  );
-}
-
-// ---------------------------------------------------------------- 3. profile
+// ---------------------------------------------------------------- 2. profile
 /**
  * Who is holding this phone. Two shapes, because the roster ships empty:
  *
  * - nobody on the device yet → create a profile
- * - somebody already here (imported a plan in the previous step, or a returning
- *   user) → pick yourself from the list, or add a new person
+ * - somebody already here (a restored backup, or a returning user) → pick
+ *   yourself from the list, or add a new person
  *
  * Whichever path, this step is the only way out of onboarding — App.tsx will
  * not show the app until activeUserId resolves to a real user.
@@ -387,7 +339,7 @@ function ProfileStep({
       <p className="mt-2 text-[15px] text-secondary">
         {returning
           ? 'Pick the profile this phone belongs to.'
-          : 'These people came from the code you imported. Tap whichever one is you.'}
+          : 'These profiles are already on this phone. Tap whichever one is you, or add yourself.'}
       </p>
 
       <div className="mt-6 space-y-2.5" role="radiogroup" aria-label="Choose your profile">

@@ -289,13 +289,20 @@ export function MapScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => void }
         </MapCanvas>
 
         {/* Banners float OVER the map rather than pushing it down — on a
-            375×667 phone they'd otherwise eat most of the map. */}
-        <div className="pointer-events-none absolute inset-x-3 top-2 z-10 space-y-1.5">
-          <div className="pointer-events-auto">
+            375×667 phone they'd otherwise eat most of the map.
+            The right gutter is reserved for MapCanvas's zoom column (44px at
+            right-3, so 56px total): full-width banners used to land underneath
+            it, which buried this tip's "Got it" button and made both it and the
+            zoom buttons look broken. */}
+        <div className="pointer-events-none absolute left-3 right-16 top-2 z-10 space-y-1.5">
+          {/* Opaque backing: FirstUseTip's own fill is bg-warp-yellow/10, which
+              is legible on a page background but not over map artwork — the
+              wordmark and sponsor logos showed straight through the text. */}
+          <div className="pointer-events-auto rounded-xl bg-[var(--surface-card)] shadow-lg">
             {/* The old wording ("unless someone manually checks in") implied a
                 friend's check-in could turn up here. Nothing syncs, and there
                 is no way to send one, so it never can — say so. */}
-            <FirstUseTip id="map" className="mb-0 shadow-lg">
+            <FirstUseTip id="map" className="mb-0">
               Everyone&apos;s position here is worked out from their schedule — not live GPS.
               Checking in only changes your own pin on your own phone; it is not sent to anyone.
             </FirstUseTip>
@@ -327,7 +334,7 @@ export function MapScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => void }
 
         {/* Check-in mode banner — z-20 so it sits above the notices. */}
         {checkInMode && (
-          <div className="absolute inset-x-3 top-2 z-20 flex items-center gap-2 rounded-xl bg-warp-blue-800/95 px-3 py-2 text-white shadow-lg">
+          <div className="absolute left-3 right-16 top-2 z-20 flex items-center gap-2 rounded-xl bg-warp-blue-800/95 px-3 py-2 text-white shadow-lg">
             <Crosshair size={16} aria-hidden />
             <span className="flex-1 text-[13px] font-semibold">Tap the map or a pin to check in</span>
             <button type="button" onClick={() => setCheckInMode(false)} aria-label="Cancel" className="p-1">

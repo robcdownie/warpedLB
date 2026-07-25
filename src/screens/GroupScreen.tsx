@@ -403,13 +403,19 @@ function FreeView({ day }: { day: DayId }) {
 
   return (
     <div className="space-y-3">
-      {/* A partial schedule cannot produce a confident free-time claim. */}
+      {/* A partial schedule cannot produce a confident free-time claim.
+
+          The message body must be ONE flex item: with the text sitting directly
+          in the flex container, every text node and the <b> became a separate
+          flex child and the sentence rendered as interleaved columns. */}
       {provisional && (
         <p className="flex items-start gap-1.5 rounded-lg bg-warp-warn/15 px-2.5 py-2 text-[12px] leading-relaxed text-warn">
           <HelpCircle size={13} className="mt-0.5 shrink-0" aria-hidden />
-          {dayLabel(day)} is only {dayInfo.entered} of {dayInfo.expected} sets entered, so these are
-          windows with <b>no known set</b> — not confirmed free time. Picks without a time could
-          land in any of them.
+          <span>
+            {dayLabel(day)} is only {dayInfo.entered} of {dayInfo.expected} sets entered, so these
+            are windows with <b>no known set</b> — not confirmed free time. Picks without a time
+            could land in any of them.
+          </span>
         </p>
       )}
       {byUser.map(({ user, windows: ws }) => (

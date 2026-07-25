@@ -155,12 +155,9 @@ async function walk(browser, base, vp) {
     await shoot('onboarding-1-welcome', { full: true });
     if (await tap('button:has-text("Get Started")')) {
       await page.waitForTimeout(400);
-      await shoot('onboarding-2-code', { full: true });
-      // Skip the set-times code step — there's nothing to paste in a harness.
-      if (await tap('button:has-text("I don\'t have a code")', 2000)) {
-        await page.waitForTimeout(400);
-        await shoot('onboarding-3-profile', { full: true });
-      }
+      // Welcome goes straight to the profile form now; the set-times code step
+      // was removed because it read as a requirement to anyone without one.
+      await shoot('onboarding-2-profile', { full: true });
     }
     // However far the walk got, land on the real app for the rest of the sheet.
     await page.evaluate(async (users) => {

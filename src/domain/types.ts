@@ -177,6 +177,7 @@ export type TipId =
   | 'group'
   | 'map'
   | 'schedule-import'
+  | 'board-code'
   | 'festival-mode';
 
 export interface AppSettings {

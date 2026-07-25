@@ -97,8 +97,10 @@ export const MapCanvas = forwardRef<
       </TransformWrapper>
 
       {/* Controls — top-right, clear of the legend baked into the artwork's
-          bottom-right corner (water/first-aid entries must stay readable). */}
-      <div className="absolute right-3 top-3 flex flex-col gap-1.5">
+          bottom-right corner (water/first-aid entries must stay readable).
+          z-30 keeps them tappable above MapScreen's floating banners (z-10/z-20),
+          which reserve this column via a right gutter. */}
+      <div className="absolute right-3 top-3 z-30 flex flex-col gap-1.5">
         <MapBtn label="Zoom in" onClick={() => apiRef.current?.zoomIn(0.4)}>
           <Plus size={18} aria-hidden />
         </MapBtn>
