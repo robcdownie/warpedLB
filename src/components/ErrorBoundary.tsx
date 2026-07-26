@@ -7,9 +7,9 @@ import { Component, type ReactNode } from 'react';
  */
 export class ErrorBoundary extends Component<
   { children: ReactNode },
-  { error: Error | null }
+  { error: Error | null; copied: boolean }
 > {
-  state = { error: null as Error | null };
+  state = { error: null as Error | null, copied: false };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
@@ -58,8 +58,34 @@ export class ErrorBoundary extends Component<
         >
           Reload app
         </button>
+        {/* If the throw is deterministic, reloading just reproduces it — so
+            offer something actionable instead of a loop. The menu can't be
+            suggested here: it lives inside the tree that just crashed. */}
+        <button
+          type="button"
+          onClick={() => {
+            const detail = `${this.state.error?.message ?? 'unknown error'}\n\n${this.state.error?.stack ?? ''}`;
+            void navigator.clipboard
+              ?.writeText(detail)
+              .then(() => this.setState({ copied: true }))
+              .catch(() => undefined);
+          }}
+          style={{
+            minHeight: 44,
+            padding: '10px 20px',
+            borderRadius: 12,
+            border: '1px solid #2d4f86',
+            background: 'transparent',
+            color: '#f4f8ff',
+            fontSize: 13,
+            fontWeight: 600,
+          }}
+        >
+          {this.state.copied ? 'Copied' : 'Copy error details'}
+        </button>
         <p style={{ fontSize: 11, color: '#8ea6cf', maxWidth: 320 }}>
-          Still stuck? Menu → Backup &amp; Data has your export and reset tools.
+          If reloading lands you back here, copy the details and text them to yourself. Your set
+          times stay on the phone either way.
         </p>
       </div>
     );

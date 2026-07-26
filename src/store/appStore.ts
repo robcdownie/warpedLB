@@ -30,6 +30,8 @@ export type TabId = 'now' | 'bands' | 'schedule' | 'group' | 'map';
 interface AppState {
   // lifecycle
   hydrated: boolean;
+  /** Set when hydrate failed, so the UI can offer a retry instead of hanging. */
+  hydrateError: Error | null;
   mode: AppMode; // 'prod' | 'demo'
   activeTab: TabId;
   online: boolean;
@@ -188,6 +190,7 @@ const BLANK_SELECTION = (userId: string, performanceId: string): Selection => ({
 
 export const useApp = create<AppState>((set, get) => ({
   hydrated: false,
+  hydrateError: null,
   mode: 'prod',
   activeTab: 'now',
   online: navigator.onLine,
@@ -207,15 +210,23 @@ export const useApp = create<AppState>((set, get) => ({
   userById: new Map(),
 
   hydrate: async () => {
-    const repo = repoFor('prod');
-    // Seed if needed (idempotent).
-    const seedVersion = await repo.getMeta<number>('seedVersion');
-    if (seedVersion !== SEED_VERSION) {
-      await seedDatabase(repo);
+    // Any throw here used to be swallowed by the `void` at the call site, and
+    // `hydrated` only flips on the success path — so a failed IndexedDB open
+    // left the splash screen up forever, with a hand-typed board sitting
+    // unreachable behind it and no way to retry.
+    try {
+      const repo = repoFor('prod');
+      // Seed if needed (idempotent).
+      const seedVersion = await repo.getMeta<number>('seedVersion');
+      if (seedVersion !== SEED_VERSION) {
+        await seedDatabase(repo);
+      }
+      void requestPersistentStorage();
+      await get().reloadAll();
+      set({ hydrated: true, hydrateError: null });
+    } catch (err) {
+      set({ hydrateError: err instanceof Error ? err : new Error(String(err)) });
     }
-    void requestPersistentStorage();
-    await get().reloadAll();
-    set({ hydrated: true });
   },
 
   setMode: async (mode) => {

@@ -9,6 +9,7 @@ import { ScheduleStatusStrip } from '@/components/ScheduleStatusStrip';
 import { LeaveByCard, useLeaveBy } from '@/components/LeaveByCard';
 import { FindMyCrew } from '@/components/FindMyCrew';
 import { BreakPlannerCard } from '@/components/BreakPlannerCard';
+import { BackupNudge } from '@/components/BackupNudge';
 import { useApp } from '@/store/appStore';
 import { useFestivalClock } from '@/hooks/useFestivalClock';
 import { useGroupCtx } from '@/hooks/useGroupCtx';
@@ -148,6 +149,8 @@ export function NowDashboard({
           Anything taller than this pushes the time-critical answer below the
           fold, which is the opposite of what a festival screen is for. */}
       <ScheduleStatusStrip day={day} compact />
+
+      <BackupNudge onOpenMenu={onOpenMenu} />
 
       {/* 1. Leave-by comes first: it's the only time-critical number. */}
       {leaveBy[0] && (

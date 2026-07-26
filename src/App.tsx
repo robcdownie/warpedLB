@@ -21,6 +21,7 @@ export function App() {
   useOnlineEffect();
   const hydrated = useApp((s) => s.hydrate);
   const isHydrated = useApp((s) => s.hydrated);
+  const hydrateError = useApp((s) => s.hydrateError);
   const activeTab = useApp((s) => s.activeTab);
   const setTab = useApp((s) => s.setTab);
   const mode = useApp((s) => s.mode);
@@ -39,6 +40,15 @@ export function App() {
   useEffect(() => {
     void hydrated();
   }, [hydrated]);
+
+  // A blocked openDB never rejects, so an error flag alone isn't enough to get
+  // off the splash screen. Offer the retry anyway after a while.
+  const [slowToStart, setSlowToStart] = useState(false);
+  useEffect(() => {
+    if (isHydrated) return;
+    const t = setTimeout(() => setSlowToStart(true), 10000);
+    return () => clearTimeout(t);
+  }, [isHydrated]);
 
   const openMenuRoute = (r: MenuRoute) => {
     setMenuRoute(r);
@@ -69,13 +79,43 @@ export function App() {
   };
 
   if (!isHydrated) {
+    // A throw, or an openDB that never settles (it can be blocked by another
+    // tab), used to leave this splash up forever with a hand-typed board
+    // sitting unreachable behind it.
+    const stuck = hydrateError || slowToStart;
     return (
-      <div className="surface-app flex h-full flex-col items-center justify-center gap-6">
+      <div className="surface-app flex h-full flex-col items-center justify-center gap-6 px-8 text-center">
         <WarpedWordmark className="h-14 scale-150" />
-        <div className="h-1.5 w-40 overflow-hidden rounded-full bg-[var(--surface-sunken)]">
-          <div className="h-full w-1/2 animate-pulse rounded-full bg-warp-pink" />
-        </div>
-        <p className="text-sm text-secondary">Loading your festival plan…</p>
+        {stuck ? (
+          <>
+            <p className="text-sm text-primary">
+              Couldn&apos;t open your saved plan on this phone.
+            </p>
+            <p className="text-[13px] text-secondary">
+              Your set times are still stored here — this is the app failing to read them, not
+              losing them. Close any other tab with the app open, then try again.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="min-h-touch rounded-xl bg-warp-yellow px-6 text-[15px] font-bold text-warp-ink"
+            >
+              Try again
+            </button>
+            {hydrateError && (
+              <p className="max-w-[320px] break-words text-[11px] text-muted">
+                {hydrateError.message}
+              </p>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="h-1.5 w-40 overflow-hidden rounded-full bg-[var(--surface-sunken)]">
+              <div className="h-full w-1/2 animate-pulse rounded-full bg-warp-pink" />
+            </div>
+            <p className="text-sm text-secondary">Loading your festival plan…</p>
+          </>
+        )}
       </div>
     );
   }

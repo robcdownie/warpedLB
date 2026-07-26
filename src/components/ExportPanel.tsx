@@ -9,10 +9,13 @@ export function ExportPanel({
   code,
   filename,
   hint,
+  onExported,
 }: {
   code: string;
   filename: string;
   hint?: string;
+  /** Fired when the code actually leaves the app (copied or saved). */
+  onExported?: () => void;
 }) {
   const [tab, setTab] = useState<'qr' | 'code'>('qr');
   const [copied, setCopied] = useState(false);
@@ -21,6 +24,7 @@ export function ExportPanel({
     const ok = await copyToClipboard(code);
     if (ok) {
       setCopied(true);
+      onExported?.();
       setTimeout(() => setCopied(false), 1500);
     }
   };
@@ -55,7 +59,13 @@ export function ExportPanel({
           {copied ? <Check size={16} aria-hidden /> : <Copy size={16} aria-hidden />}
           {copied ? 'Copied' : 'Copy code'}
         </Button>
-        <Button variant="secondary" onClick={() => downloadText(filename, code)}>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            downloadText(filename, code);
+            onExported?.();
+          }}
+        >
           <Download size={16} aria-hidden />
           Save file
         </Button>
