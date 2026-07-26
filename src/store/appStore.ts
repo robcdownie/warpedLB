@@ -359,7 +359,11 @@ export const useApp = create<AppState>((set, get) => ({
     const next: Selection = {
       ...existing,
       attendanceDecision: decision,
-      skippedForConflict: skippedForConflict ?? existing.skippedForConflict,
+      // The flag used to be sticky: `?? existing`, so a band you later restored
+      // by hand still claimed a conflict dropped it, and any recovery keyed on
+      // the flag would resurrect picks you'd deliberately let go. An explicit
+      // decision clears it; only a conflict card sets it.
+      skippedForConflict: skippedForConflict ?? false,
     };
     await repo.putSelection(next);
     set({ selections: patchSelection(get().selections, next) });

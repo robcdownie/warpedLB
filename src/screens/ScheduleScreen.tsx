@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { CalendarDays, Pencil, AlertTriangle, Upload, LayoutList, ListOrdered } from 'lucide-react';
-import { Screen, Button, cx } from '@/components/ui';
+import { useMemo, useState } from 'react';
+import { CalendarDays, Pencil, AlertTriangle, Upload, LayoutList, ListOrdered, RotateCcw } from 'lucide-react';
+import { Screen, Button, Card, cx } from '@/components/ui';
 import { EmptyState } from '@/components/EmptyState';
-import { ConflictCard } from '@/components/ConflictCard';
+import { ConflictCard, DroppedStrip } from '@/components/ConflictCard';
 import { PersonalSchedule } from './schedule/PersonalSchedule';
 import { ScheduleEditor } from './schedule/ScheduleEditor';
 import { BoardEntry } from './schedule/BoardEntry';
@@ -12,7 +12,9 @@ import { useScheduleStatus } from '@/hooks/useScheduleStatus';
 import { ScheduleStatusStrip, ProvisionalNote } from '@/components/ScheduleStatusStrip';
 import { FirstUseTip } from '@/components/FirstUseTip';
 import { conflictSummary } from '@/domain/conflicts';
-import { getNow } from '@/domain/time';
+import { getNow, dayLabel } from '@/domain/time';
+import { recoverablePicks, planCount } from '@/domain/recovery';
+import { withEffectiveEnds } from '@/domain/endTimes';
 import { ART } from '@/config/event';
 import type { MenuRoute } from '@/components/MenuDrawer';
 import type { DayId } from '@/domain/types';
@@ -149,16 +151,91 @@ export function ScheduleScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => v
 function ConflictsView({ day, setDay }: { day: DayId; setDay: (d: DayId) => void }) {
   const activeUserId = useApp((s) => s.settings.activeUserId);
   const performanceById = useApp((s) => s.performanceById);
+  const artistById = useApp((s) => s.artistById);
+  const selections = useApp((s) => s.selections);
+  const performances = useApp((s) => s.performances);
+  const turnoverBuffer = useApp((s) => s.settings.turnoverBuffer);
+  const setAttendance = useApp((s) => s.setAttendance);
   const dayComplete = useScheduleStatus().byDay[day].status === 'complete';
   const conflicts = useConflicts(activeUserId).filter((c) => {
     const p = performanceById.get(c.performanceIds[0]);
     return p?.day === day;
   });
 
+  const count = useMemo(
+    () => planCount(activeUserId, day, selections, performanceById),
+    [activeUserId, day, selections, performanceById],
+  );
+
+  // Bands the app dropped for clashes that have since stopped being real. This
+  // is the only way back: a skipped pick leaves the conflict engine entirely,
+  // so nothing else would ever mention them again.
+  const recoverable = useMemo(
+    () =>
+      recoverablePicks({
+        userId: activeUserId,
+        selections,
+        performanceById,
+        artistById,
+        ends: withEffectiveEnds(performances, turnoverBuffer),
+      }).filter((r) => r.day === day),
+    [activeUserId, selections, performanceById, artistById, performances, turnoverBuffer, day],
+  );
+
+  const restoreAll = async () => {
+    for (const r of recoverable) await setAttendance(activeUserId, r.performanceId, 'undecided');
+  };
+
+  // Held here, not in the card: choosing resolves the conflict and unmounts it.
+  const [justDropped, setJustDropped] = useState<{ ids: string[]; names: string[] } | null>(null);
+  const undoDrop = async () => {
+    if (!justDropped) return;
+    for (const pid of justDropped.ids) await setAttendance(activeUserId, pid, 'undecided');
+    setJustDropped(null);
+  };
+
   return (
     <>
       <DayToggle day={day} setDay={setDay} />
       <ScheduleStatusStrip day={day} compact />
+
+      {justDropped && (
+        <DroppedStrip className="mb-2" names={justDropped.names} onUndo={() => void undoDrop()} />
+      )}
+
+      {/* How much day is left, while you're deciding — not two screens later. */}
+      {count.picked > 0 && (
+        <p className="mb-2 px-1 text-[12px] text-secondary">
+          <b className="text-primary">
+            {count.onPlan} of {count.picked}
+          </b>{' '}
+          {dayLabel(day)} picks still on your plan.
+        </p>
+      )}
+
+      {recoverable.length > 0 && (
+        <Card className="mb-3 border-warp-ok/40 p-3">
+          <div className="mb-1 flex items-center gap-1.5">
+            <RotateCcw size={15} className="text-ok" aria-hidden />
+            <span className="font-display text-[14px] text-primary">
+              {recoverable.length === 1
+                ? '1 band was dropped for a clash that no longer exists'
+                : `${recoverable.length} bands were dropped for clashes that no longer exist`}
+            </span>
+          </div>
+          <p className="text-[13px] leading-relaxed text-secondary">
+            {recoverable.map((r) => r.artistName).join(', ')} — nothing on your plan competes with{' '}
+            {recoverable.length === 1 ? 'it' : 'them'} any more.
+          </p>
+          <button
+            type="button"
+            onClick={() => void restoreAll()}
+            className="mt-2 min-h-touch rounded-lg bg-warp-blue-500 px-3 text-[13px] font-semibold text-white"
+          >
+            Put {recoverable.length === 1 ? 'it' : 'them'} back on my day
+          </button>
+        </Card>
+      )}
       {conflicts.length === 0 ? (
         <>
           <EmptyState
@@ -177,7 +254,12 @@ function ConflictsView({ day, setDay }: { day: DayId; setDay: (d: DayId) => void
         <>
           <div className="space-y-2">
             {conflicts.map((c) => (
-              <ConflictCard key={c.id} conflict={c} userId={activeUserId} />
+              <ConflictCard
+                key={c.id}
+                conflict={c}
+                userId={activeUserId}
+                onDropped={(ids, names) => setJustDropped({ ids, names })}
+              />
             ))}
           </div>
           <ProvisionalNote day={day} what="clashes" />

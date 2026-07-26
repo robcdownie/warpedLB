@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, AlertCircle, Info, Check, Split } from 'lucide-react';
+import { AlertTriangle, AlertCircle, Info, Check, Split, Undo2 } from 'lucide-react';
 import type { Conflict, ConflictAction } from '@/domain/conflicts';
 import { useApp } from '@/store/appStore';
 import { SplitSetSheet } from './SplitSetSheet';
@@ -17,26 +17,43 @@ export function ConflictCard({
   conflict,
   userId,
   onIgnore,
+  onDropped,
 }: {
   conflict: Conflict;
   userId: string;
   onIgnore?: (c: Conflict) => void;
+  /**
+   * Reports the sets a choice just dropped. Handled by the parent, because
+   * choosing resolves the conflict and unmounts this card — any undo affordance
+   * held here would vanish in the same frame it appeared.
+   */
+  onDropped?: (ids: string[], names: string[]) => void;
 }) {
   const setAttendance = useApp((s) => s.setAttendance);
   const setSplitPlan = useApp((s) => s.setSplitPlan);
+  const artistById = useApp((s) => s.artistById);
+  const performanceById = useApp((s) => s.performanceById);
   const m = SEVERITY_META[conflict.severity];
   const [splitting, setSplitting] = useState<string[] | null>(null);
+
+  const nameOf = (pid: string) =>
+    artistById.get(performanceById.get(pid)?.artistId ?? '')?.name ?? 'that set';
 
   const handle = async (action: ConflictAction) => {
     const ids = action.performanceIds ?? conflict.performanceIds;
     if (action.kind === 'attend' && action.attendId) {
       for (const pid of ids) {
         await setAttendance(userId, pid, pid === action.attendId ? 'attending' : 'skipping', pid !== action.attendId);
-        // Choosing one whole set clears any earlier split trim on it.
-        if (pid === action.attendId) {
-          await setSplitPlan(userId, pid, { arriveLateMinutes: 0, leaveEarlyMinutes: 0 });
-        }
+        // Choosing one whole set clears any earlier split trim — on BOTH sides.
+        // Clearing only the winner left the loser with an orphaned arrive-late
+        // offset, so My Day told you to turn up late to a band you now intend
+        // to see in full.
+        await setSplitPlan(userId, pid, { arriveLateMinutes: 0, leaveEarlyMinutes: 0 });
+        // setSplitPlan marks a pick attending; put the loser back to skipped.
+        if (pid !== action.attendId) await setAttendance(userId, pid, 'skipping', true);
       }
+      const lost = ids.filter((pid) => pid !== action.attendId);
+      if (lost.length) onDropped?.(lost, lost.map(nameOf));
     } else if (action.kind === 'undecided') {
       for (const pid of ids) await setAttendance(userId, pid, 'undecided');
     } else if (action.kind === 'split') {
@@ -104,5 +121,48 @@ export function ConflictCard({
         />
       )}
     </Card>
+  );
+}
+
+/** "A and B" — a dropped-set list reads as names, not a count. */
+function listNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? 'that set';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/**
+ * "Dropped Knuckle Puck from your day. Undo."
+ *
+ * Lives outside the card on purpose — the choice that drops a set also resolves
+ * the conflict, so the card is gone by the time this needs to be read.
+ */
+export function DroppedStrip({
+  names,
+  onUndo,
+  className,
+}: {
+  names: string[];
+  onUndo: () => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cx(
+        'flex items-center gap-2 rounded-lg border border-subtle bg-[var(--surface-sunken)] px-2.5 py-2',
+        className,
+      )}
+      role="status"
+    >
+      <span className="min-w-0 flex-1 text-[12px] text-secondary">
+        Dropped <b className="text-primary">{listNames(names)}</b> from your day.
+      </span>
+      <button
+        type="button"
+        onClick={onUndo}
+        className="min-h-touch inline-flex shrink-0 items-center gap-1 rounded-lg px-2 text-[13px] font-bold text-accent"
+      >
+        <Undo2 size={14} aria-hidden /> Undo
+      </button>
+    </div>
   );
 }
