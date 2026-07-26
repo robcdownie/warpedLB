@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Camera, ClipboardPaste, FileUp, Check, AlertTriangle, Undo2, CheckCircle2 } from 'lucide-react';
 import { Button, Card, cx } from './ui';
 import { QrScanner, decodeQrImage } from './QrScanner';
-import { ChunkCollector } from '@/domain/share/chunker';
+import { collectPastedCode } from '@/domain/share/chunker';
 import { decodeEnvelope, DecodeError, type Envelope, type PayloadType } from '@/domain/share/codec';
 import { previewImport, type ImportPreview } from '@/domain/share/payloads';
 import { validateEnvelope, validateRawCode, type ValidationIssue } from '@/domain/share/validate';
@@ -41,7 +41,6 @@ export function ImportPanel({
   const [committed, setCommitted] = useState<{ backupId: number; summary: string } | null>(null);
   const [rolledBack, setRolledBack] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const collector = useRef(new ChunkCollector());
 
   const handleCode = (code: string) => {
     setError(null);
@@ -79,22 +78,11 @@ export function ImportPanel({
   };
 
   const handlePaste = () => {
-    // Support multi-part paste: one chunk per line.
-    collector.current.reset();
-    const lines = pasteText.split(/\s*\n\s*/).map((l) => l.trim()).filter(Boolean);
-    if (lines.length === 0) return;
-    let finalCode: string | null = null;
-    for (const line of lines) {
-      const res = collector.current.add(line);
-      if (res.error && lines.length === 1) {
-        // maybe it's a raw code without chunk prefix
-        finalCode = line;
-        break;
-      }
-      if (res.complete && res.code) finalCode = res.code;
-    }
-    if (finalCode) handleCode(finalCode);
-    else setError(`Have all parts? Collected ${collector.current.received}/${collector.current.total || '?'}.`);
+    // Supports multi-part paste (one chunk per line) and single codes that were
+    // hard-wrapped in transit — see collectPastedCode.
+    const { code, error: collectError } = collectPastedCode(pasteText);
+    if (code) handleCode(code);
+    else if (collectError) setError(collectError);
   };
 
   const handleFile = async (file: File) => {
