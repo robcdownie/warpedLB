@@ -39,7 +39,7 @@ describe('pasted text', () => {
   // to wrap it. Reading only the first line used to surface as "corrupt".
   const code = encodeEnvelope(
     'schedule',
-    'robbie',
+    'member-1',
     { p: Array.from({ length: 40 }, (_, i) => [`set-${i}`, 'rex-stage', '16:50', '17:10']) },
     '2026-07-25T18:00:00.000Z',
   );

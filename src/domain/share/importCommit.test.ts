@@ -197,7 +197,7 @@ describe('schedule import', () => {
   });
 
   it('carries a band typed in off the board to the other phone', async () => {
-    // Robbie's phone: a late addition that isn't in the announced lineup.
+    // The sender's phone: a late addition that isn't in the announced lineup.
     const sender = seedRepo();
     const added = perf('main-sat-late-openers', {
       artistId: 'late-openers',
@@ -206,13 +206,13 @@ describe('schedule import', () => {
       addedLocally: true,
     });
     sender._state.performances.set(added.id, added);
-    const code = encodeSchedule(await sender.allPerformances(), 'robbie', NOW, {
+    const code = encodeSchedule(await sender.allPerformances(), 'member-1', NOW, {
       artistById: new Map([
         ['late-openers', { id: 'late-openers', name: 'Late Openers', searchAliases: [], category: 'main-lineup' } as Artist],
       ]),
     });
 
-    // Ari's phone has never heard of the band. Without the extras it would be
+    // The receiver's phone has never heard of the band. Without the extras it would be
     // skipped as an unknown id and her 12:40 would read as free.
     const receiver = seedRepo();
     await commitImport(asRepo(receiver), decodeEnvelope(code));
@@ -229,7 +229,7 @@ describe('schedule import', () => {
       'main-sat-late-openers',
       perf('main-sat-late-openers', { artistId: 'late-openers', startTime: '12:40', addedLocally: true }),
     );
-    const code = encodeSchedule(await sender.allPerformances(), 'robbie', NOW, {
+    const code = encodeSchedule(await sender.allPerformances(), 'member-1', NOW, {
       artistById: new Map([
         ['late-openers', { id: 'late-openers', name: 'Late Openers', searchAliases: [], category: 'main-lineup' } as Artist],
       ]),

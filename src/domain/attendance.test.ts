@@ -23,7 +23,7 @@ function sel(
   extra: Partial<Selection> = {},
 ): Selection {
   return {
-    userId: 'robbie',
+    userId: 'member-1',
     performanceId,
     priority: 'want-to-see',
     selected: true,

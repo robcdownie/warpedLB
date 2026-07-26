@@ -7,12 +7,12 @@ import type { Performance, Selection, User } from '@/domain/types';
 const NOW = '2026-07-26T12:00:00.000Z';
 
 function user(avatar: string | null): User {
-  return { id: 'ari', name: 'Ari', initials: 'AR', avatar, colorKey: 'pink' as User['colorKey'] };
+  return { id: 'member-2', name: 'Sam', initials: 'S', avatar, colorKey: 'pink' as User['colorKey'] };
 }
 
 function sel(performanceId: string): Selection {
   return {
-    userId: 'ari',
+    userId: 'member-2',
     performanceId,
     priority: 'want-to-see',
     selected: true,
@@ -50,7 +50,7 @@ describe('what goes into a share code', () => {
     const data = buildSelectionsData(user(photo), [sel('p1')]);
     expect(data.a).toBeNull();
 
-    const frames = toChunks(encodeEnvelope('selections', 'ari', data, NOW)).length;
+    const frames = toChunks(encodeEnvelope('selections', 'member-2', data, NOW)).length;
     expect(frames).toBe(1);
   });
 

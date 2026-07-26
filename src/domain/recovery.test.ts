@@ -19,7 +19,7 @@ function perf(id: string, start: string | null, stageId = 's1'): Performance {
 
 function sel(performanceId: string, over: Partial<Selection> = {}): Selection {
   return {
-    userId: 'robbie',
+    userId: 'member-1',
     performanceId,
     priority: 'want-to-see',
     selected: true,
@@ -31,7 +31,7 @@ function sel(performanceId: string, over: Partial<Selection> = {}): Selection {
 
 function ctx(perfs: Performance[], sels: Selection[]) {
   return {
-    userId: 'robbie',
+    userId: 'member-1',
     selections: sels,
     performanceById: new Map(perfs.map((p) => [p.id, p])),
     artistById: new Map(
@@ -111,7 +111,7 @@ describe('how much of the day is left', () => {
   it('counts picks still on the plan against picks made', () => {
     const perfs = [perf('a', '13:00'), perf('b', '15:00'), perf('c', '17:00')];
     const c = planCount(
-      'robbie',
+      'member-1',
       'saturday',
       [
         sel('a'),
