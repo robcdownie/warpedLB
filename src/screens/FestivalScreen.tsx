@@ -9,6 +9,7 @@ import {
   CalendarClock,
   Handshake,
   LifeBuoy,
+  Footprints,
 } from 'lucide-react';
 import { Button, Card, cx } from '@/components/ui';
 import { FriendAvatar } from '@/components/FriendAvatar';
@@ -19,12 +20,21 @@ import { useApp } from '@/store/appStore';
 import { useFestivalClock } from '@/hooks/useFestivalClock';
 import { useConflicts } from '@/hooks/useConflicts';
 import { useDayScheduleStatus } from '@/hooks/useScheduleStatus';
-import { withEffectiveEnds } from '@/domain/endTimes';
+import { withEffectiveEnds, type EffectiveEnd } from '@/domain/endTimes';
 import { attendWindow } from '@/domain/splitSet';
 import { formatMinutes, formatDuration, formatTime, dayLabel, hhmmToMinutes } from '@/domain/time';
 import type { TabId } from '@/store/appStore';
 import type { MenuRoute } from '@/components/MenuDrawer';
+import type { LeaveByInfo } from '@/domain/leaveBy';
+import type { AttendWindow } from '@/domain/splitSet';
 import type { Performance } from '@/domain/types';
+
+/** A set on the plan, with the window actually being attended. */
+interface Stop {
+  perf: Performance;
+  window: AttendWindow;
+  endKind: EffectiveEnd['kind'];
+}
 
 /**
  * Festival Lock Screen (add-on §1).
@@ -73,21 +83,22 @@ export function FestivalScreen({
         return p?.day === day && !!p.startTime && !!p.stageId;
       })
       .map((s) => {
+        const end = ends.get(s.performanceId)!;
         const p = performanceById.get(s.performanceId)!;
-        return { perf: p, window: attendWindow(p, s, ends.get(p.id)!)! };
+        return { perf: p, window: attendWindow(p, s, end)!, endKind: end.kind };
       })
       .sort((a, b) => a.window.start - b.window.start);
 
-    let current: Performance | undefined;
-    let next: Performance | undefined;
+    let current: Stop | undefined;
+    let next: Stop | undefined;
     for (const m of mine) {
-      if (atMinute >= m.window.start && atMinute < m.window.end) current = m.perf;
-      else if (m.window.start > atMinute && !next) next = m.perf;
+      if (atMinute >= m.window.start && atMinute < m.window.end) current = m;
+      else if (m.window.start > atMinute && !next) next = m;
     }
     return { current, next };
   }, [selections, activeUserId, performanceById, day, ends, atMinute]);
 
-  const focus = current ?? next;
+  const focus = (current ?? next)?.perf;
   const focusStage = focus?.stageId ? locationById.get(focus.stageId) : undefined;
   const friendsHere = focus
     ? selections
@@ -149,8 +160,10 @@ export function FestivalScreen({
           the full app back.
         </FirstUseTip>
 
-        {/* 1. Leave-by is the top-priority answer once a plan exists. */}
-        {leaveBy[0] && (
+        {/* 1. Leave-by is the top-priority answer once a plan exists — unless a
+            set is on now, in which case it belongs on the Next up card below,
+            next to the band it is about. */}
+        {leaveBy[0] && !current && (
           <LeaveByCard
             className="mb-3"
             info={leaveBy[0]}
@@ -212,6 +225,23 @@ export function FestivalScreen({
               Open Schedule
             </Button>
           </Card>
+        )}
+
+        {/* 2b. What's after this one — the answer to "should we cut out early?" */}
+        {current && next && (
+          <NextUpCard
+            className="mb-3"
+            current={current}
+            next={next}
+            leave={leaveBy.find((l) => l.performanceId === next.perf.id)}
+            currentName={artistById.get(current.perf.artistId)?.name ?? 'This set'}
+            nextName={artistById.get(next.perf.artistId)?.name ?? 'Next set'}
+            nextStageName={
+              (next.perf.stageId ? locationById.get(next.perf.stageId) : undefined)?.name ?? 'Stage TBA'
+            }
+            atMinute={atMinute}
+            onOpen={() => onGoTab('schedule')}
+          />
         )}
 
         {/* 3. Two big one-handed actions. */}
@@ -292,5 +322,86 @@ export function FestivalScreen({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * "Next up", shown while a set is on.
+ *
+ * Standing in a crowd, the live question isn't what's on — you can see that —
+ * it's whether to cut out early for the next one. That needs three facts next
+ * to each other: who's next, how long the walk is, and whether staying to the
+ * last song makes you late. The card does that arithmetic out loud instead of
+ * leaving it to be done in a pit.
+ */
+function NextUpCard({
+  current,
+  next,
+  leave,
+  currentName,
+  nextName,
+  nextStageName,
+  atMinute,
+  className,
+  onOpen,
+}: {
+  current: Stop;
+  next: Stop;
+  leave?: LeaveByInfo;
+  currentName: string;
+  nextName: string;
+  nextStageName: string;
+  atMinute: number;
+  className?: string;
+  onOpen: () => void;
+}) {
+  const walk = leave?.walkMinutes ?? null;
+  // Where staying to the last note lands you. Positive = that many minutes late.
+  const lateBy = walk === null ? null : current.window.end + walk - next.window.start;
+
+  return (
+    <Card className={cx('overflow-hidden p-0', className)}>
+      <div className="bg-[var(--surface-sunken)] px-4 py-1.5 text-[11px] font-bold uppercase tracking-wide text-secondary">
+        Next up
+      </div>
+      <button type="button" onClick={onOpen} className="block w-full p-4 text-left">
+        <div className="font-display text-[19px] leading-tight text-primary">{nextName}</div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-secondary">
+          <span className="flex items-center gap-1">
+            <MapPin size={13} aria-hidden /> {nextStageName}
+          </span>
+          <span>
+            {formatMinutes(next.window.start)} · in {formatDuration(next.window.start - atMinute)}
+          </span>
+          {walk !== null && (
+            <span className="flex items-center gap-1">
+              <Footprints size={13} aria-hidden /> ~{formatDuration(walk)} walk
+            </span>
+          )}
+        </div>
+
+        {leave && <LeaveByCard compact className="mt-2" info={leave} artistName={nextName} />}
+
+        {lateBy !== null && (
+          <p className="mt-2 text-[13px] leading-relaxed text-secondary">
+            {lateBy > 0 ? (
+              <>
+                Staying to the end of {currentName} ({formatMinutes(current.window.end)}) gets you
+                there about {formatDuration(lateBy)} late — cut out about {formatDuration(lateBy)}{' '}
+                early to catch the start.
+              </>
+            ) : (
+              <>
+                You can stay to the end of {currentName} ({formatMinutes(current.window.end)}) and
+                still make the start.
+              </>
+            )}
+            {current.endKind !== 'exact' && (
+              <span className="text-muted"> That end time is an estimate.</span>
+            )}
+          </p>
+        )}
+      </button>
+    </Card>
   );
 }
