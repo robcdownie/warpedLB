@@ -51,7 +51,9 @@ export function installDebugHook() {
       // from the one users actually ship.
       const me = s.userById.get(s.settings.activeUserId);
       const source = me?.name ?? s.settings.activeUserId;
-      return encodeSchedule(s.performances, source, new Date().toISOString());
+      return encodeSchedule(s.performances, source, new Date().toISOString(), {
+        artistById: s.artistById,
+      });
     },
     exportSelections: (userId: string) => {
       const s = useApp.getState();

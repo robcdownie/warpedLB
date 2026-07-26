@@ -16,6 +16,7 @@ export function DataScreen() {
   const users = useApp((s) => s.users);
   const selections = useApp((s) => s.selections);
   const performances = useApp((s) => s.performances);
+  const artistById = useApp((s) => s.artistById);
   const locations = useApp((s) => s.locations);
   const checkins = useApp((s) => s.checkins);
   const activeUserId = useApp((s) => s.settings.activeUserId);
@@ -44,8 +45,8 @@ export function DataScreen() {
   // Codes show their sender on the receiving phone, so send the display name
   // rather than the internal id — see ScheduleIoScreen for the full reasoning.
   const scheduleCode = useMemo(
-    () => encodeSchedule(performances, exportSource, new Date().toISOString()),
-    [performances, exportSource],
+    () => encodeSchedule(performances, exportSource, new Date().toISOString(), { artistById }),
+    [performances, exportSource, artistById],
   );
   const coordsCode = useMemo(
     () => encodeCoordinates(locations, exportSource, new Date().toISOString()),

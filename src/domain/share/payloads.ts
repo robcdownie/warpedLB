@@ -9,6 +9,7 @@ import type {
   ColorKey,
   AppSettings,
   DayId,
+  Artist,
 } from '@/domain/types';
 import { encodeEnvelope, type Envelope, type PayloadType } from './codec';
 import { plural } from '../plural';
@@ -77,18 +78,37 @@ export interface ScheduleData {
   rev?: number;
   /** Days the sender marked verified-complete, so completeness travels too. */
   done?: DayId[];
+  /**
+   * Bands typed in off the board that aren't in the announced lineup. Without
+   * these the receiver silently drops the row (an unknown id is skipped on
+   * import) and their day would read as free in a slot that isn't.
+   */
+  x?: [string, string, string, DayId | null][]; // [perfId, artistId, name, day]
 }
 
 export function buildScheduleData(
   performances: Performance[],
-  meta?: { revision?: number; completeDays?: DayId[] },
+  meta?: { revision?: number; completeDays?: DayId[]; artistById?: Map<string, Artist> },
 ): ScheduleData {
+  // An unplugged set carries a permanent stage from the seed, so "has a stage"
+  // alone let all 32 of them ride along with nothing entered — a whole wasted
+  // QR frame every send.
+  const entered = performances.filter(
+    (p) => p.startTime || p.endTime || (p.stageId && p.type !== 'unplugged'),
+  );
+  const added = entered.filter((p) => p.addedLocally);
   return {
-    p: performances
-      .filter((p) => p.startTime || p.stageId || p.endTime)
-      .map((p) => [p.id, p.stageId, p.startTime, p.endTime]),
+    p: entered.map((p) => [p.id, p.stageId, p.startTime, p.endTime]),
     rev: meta?.revision,
     done: meta?.completeDays,
+    x: added.length
+      ? added.map((p) => [
+          p.id,
+          p.artistId,
+          meta?.artistById?.get(p.artistId)?.name ?? p.artistId,
+          p.day,
+        ])
+      : undefined,
   };
 }
 
@@ -147,7 +167,7 @@ export function encodeSchedule(
   performances: Performance[],
   source: string,
   now: string,
-  meta?: { revision?: number; completeDays?: DayId[] },
+  meta?: { revision?: number; completeDays?: DayId[]; artistById?: Map<string, Artist> },
 ): string {
   return encodeEnvelope('schedule', source, buildScheduleData(performances, meta), now);
 }

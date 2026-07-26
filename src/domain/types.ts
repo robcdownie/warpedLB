@@ -63,6 +63,11 @@ export interface Performance {
   sourceRevision?: number;
   /** When a human confirmed this row against an official source. */
   verifiedAt?: string | null;
+  /**
+   * Typed in off the board because it wasn't in the announced lineup — a late
+   * addition or a local opener. Kept distinct so it never passes as official.
+   */
+  addedLocally?: boolean;
 }
 
 export interface User {

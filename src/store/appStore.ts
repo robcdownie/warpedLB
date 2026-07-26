@@ -22,6 +22,7 @@ import type {
   TipId,
 } from '@/domain/types';
 import { selectionKey } from '@/db/schema';
+import { artistId, mainPerformanceId, unpluggedPerformanceId } from '@/domain/slug';
 import { commitImport, rollbackImport } from '@/domain/share/importCommit';
 
 export type TabId = 'now' | 'bands' | 'schedule' | 'group' | 'map';
@@ -90,6 +91,12 @@ interface AppState {
 
   // performances (schedule editing)
   updatePerformance: (perf: Performance, historySummary?: string) => Promise<void>;
+  /** Create a band that's on the board but wasn't in the announced lineup. */
+  addBoardBand: (input: {
+    name: string;
+    day: DayId;
+    type: 'main' | 'unplugged';
+  }) => Promise<Performance | null>;
   undoLastScheduleEdit: () => Promise<boolean>;
 
   // locations
@@ -416,6 +423,52 @@ export const useApp = create<AppState>((set, get) => ({
     // the worst of the reload cost. Patch the row and rebuild only its lookup.
     const performances = patchPerformance(get().performances, perf);
     set({ performances, performanceById: new Map(performances.map((p) => [p.id, p])) });
+  },
+
+  /**
+   * A band on the wall that isn't in the announced lineup — a late addition or
+   * a local opener. Without this the set simply could not be entered, and the
+   * day would still count itself "complete" around the hole.
+   *
+   * Ids are derived from the name (domain/slug.ts), so the same band added on
+   * two phones is the same record and the crew's codes still line up.
+   */
+  addBoardBand: async ({ name, day, type }) => {
+    const clean = name.trim().replace(/\s+/g, ' ');
+    if (!clean) return null;
+    const repo = repoFor(get().mode);
+    const aId = artistId(clean);
+    const pId = type === 'unplugged' ? unpluggedPerformanceId(clean) : mainPerformanceId(day, clean);
+
+    // Already there (added earlier, or imported from a friend) — hand it back
+    // rather than making a duplicate.
+    const existing = get().performanceById.get(pId);
+    if (existing) return existing;
+
+    if (!get().artistById.has(aId)) {
+      await repo.putArtist({
+        id: aId,
+        name: clean,
+        searchAliases: [],
+        category: type === 'unplugged' ? 'unplugged-special' : 'main-lineup',
+      });
+    }
+    const perf: Performance = {
+      id: pId,
+      artistId: aId,
+      type,
+      day: type === 'unplugged' ? null : day,
+      stageId: null,
+      startTime: null,
+      endTime: null,
+      estimatedEndTime: null,
+      scheduleStatus: 'time-pending',
+      officialStatus: 'confirmed',
+      addedLocally: true,
+    };
+    await repo.putPerformance(perf);
+    await get().reloadAll();
+    return get().performanceById.get(pId) ?? perf;
   },
 
   undoLastScheduleEdit: async () => {

@@ -24,6 +24,9 @@ export async function commitImport(repo: Repo, env: Envelope): Promise<CommitRes
     users: await repo.allUsers(),
     selections: await repo.allSelections(),
     performances: await repo.allPerformances(),
+    // Artists ride along because a schedule import can now CREATE bands (see
+    // ScheduleData.x). Restoring performances alone would leave them orphaned.
+    artists: await repo.allArtists(),
     locations: await repo.allLocations(),
     checkins: await repo.allCheckins(),
     settings: await repo.getSettings(),
@@ -63,6 +66,42 @@ export async function commitImport(repo: Repo, env: Envelope): Promise<CommitRes
     }
   } else if (env.type === 'schedule') {
     const d = env.data as ScheduleData;
+
+    // Bands the sender typed in off the board that aren't in the announced
+    // lineup. Create them first — an unknown id is skipped below, which would
+    // silently drop the set and leave that slot reading as free time.
+    if (d.x?.length) {
+      const known = new Set((await repo.allArtists()).map((a) => a.id));
+      const knownPerfs = new Set((await repo.allPerformances()).map((p) => p.id));
+      for (const [perfId, aId, name, day] of d.x) {
+        if (!known.has(aId)) {
+          await repo.putArtist({
+            id: aId,
+            name,
+            searchAliases: [],
+            category: day ? 'main-lineup' : 'unplugged-special',
+          });
+          known.add(aId);
+        }
+        if (!knownPerfs.has(perfId)) {
+          await repo.putPerformance({
+            id: perfId,
+            artistId: aId,
+            type: day ? 'main' : 'unplugged',
+            day,
+            stageId: null,
+            startTime: null,
+            endTime: null,
+            estimatedEndTime: null,
+            scheduleStatus: 'time-pending',
+            officialStatus: 'confirmed',
+            addedLocally: true,
+          });
+          knownPerfs.add(perfId);
+        }
+      }
+    }
+
     const perfs = new Map((await repo.allPerformances()).map((p) => [p.id, p]));
     const updated: Performance[] = [];
     for (const [id, stageId, start, end] of d.p) {
@@ -164,6 +203,7 @@ export async function rollbackImport(repo: Repo, backupId: number): Promise<bool
     users: import('@/domain/types').User[];
     selections: import('@/domain/types').Selection[];
     performances: Performance[];
+    artists?: import('@/domain/types').Artist[];
     locations: import('@/domain/types').MapLocation[];
     checkins: CheckIn[];
     settings: import('@/domain/types').AppSettings;
@@ -173,6 +213,20 @@ export async function rollbackImport(repo: Repo, backupId: number): Promise<bool
   await repo.putSelections(snap.selections);
   await repo.clearStore('users');
   for (const u of snap.users) await repo.putUser(u);
+  // Records the import CREATED aren't in the snapshot, and putting the snapshot
+  // back only upserts — so drop the additions explicitly or an undone import
+  // leaves its bands behind. Older snapshots have no `artists`; skip that half
+  // rather than deleting every artist on the phone.
+  const keepPerfs = new Set(snap.performances.map((p) => p.id));
+  for (const p of await repo.allPerformances()) {
+    if (!keepPerfs.has(p.id)) await repo.deletePerformance(p.id);
+  }
+  if (snap.artists) {
+    const keepArtists = new Set(snap.artists.map((a) => a.id));
+    for (const a of await repo.allArtists()) {
+      if (!keepArtists.has(a.id)) await repo.deleteArtist(a.id);
+    }
+  }
   await repo.putPerformances(snap.performances);
   await repo.putLocations(snap.locations);
   await repo.clearStore('checkins');

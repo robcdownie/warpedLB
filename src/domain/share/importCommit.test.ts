@@ -8,6 +8,7 @@ import type {
   CheckIn,
   AppSettings,
   BackupSnapshot,
+  Artist,
 } from '@/domain/types';
 import { DEFAULT_SETTINGS } from '@/domain/settings';
 import { decodeEnvelope } from './codec';
@@ -33,6 +34,7 @@ function makeFakeRepo() {
   const users = new Map<string, User>();
   const selections = new Map<string, Selection>();
   const performances = new Map<string, Performance>();
+  const artists = new Map<string, Artist>();
   const locations = new Map<string, MapLocation>();
   const checkins = new Map<string, CheckIn>();
   const backups = new Map<number, BackupSnapshot>();
@@ -56,6 +58,10 @@ function makeFakeRepo() {
     async putPerformance(p: Performance) { performances.set(p.id, p); },
     async putPerformances(list: Performance[]) { for (const p of list) performances.set(p.id, p); },
     async getPerformance(id: string) { return performances.get(id); },
+    async deletePerformance(id: string) { performances.delete(id); },
+    async allArtists() { return [...artists.values()]; },
+    async putArtist(a: Artist) { artists.set(a.id, a); },
+    async deleteArtist(id: string) { artists.delete(id); },
     async putLocations(list: MapLocation[]) { for (const l of list) locations.set(l.id, l); },
     async putCheckIn(c: CheckIn) { checkins.set(c.id, c); },
     async addBackup(snapshot: BackupSnapshot) { backups.set(++backupId, snapshot); return backupId; },
@@ -67,7 +73,7 @@ function makeFakeRepo() {
       else throw new Error(`fake clearStore: unexpected store ${store}`);
     },
     // direct state access for assertions
-    _state: { users, selections, performances, locations, checkins, get settings() { return settings; } },
+    _state: { users, selections, performances, artists, locations, checkins, get settings() { return settings; } },
   };
   return fake;
 }
@@ -188,6 +194,56 @@ describe('schedule import', () => {
     const p1 = repo._state.performances.get('p1')!;
     expect(p1.startTime).toBe('12:15');
     expect(p1.scheduleStatus).toBe('scheduled'); // confirmed no longer applies
+  });
+
+  it('carries a band typed in off the board to the other phone', async () => {
+    // Robbie's phone: a late addition that isn't in the announced lineup.
+    const sender = seedRepo();
+    const added = perf('main-sat-late-openers', {
+      artistId: 'late-openers',
+      stageId: 's1',
+      startTime: '12:40',
+      addedLocally: true,
+    });
+    sender._state.performances.set(added.id, added);
+    const code = encodeSchedule(await sender.allPerformances(), 'robbie', NOW, {
+      artistById: new Map([
+        ['late-openers', { id: 'late-openers', name: 'Late Openers', searchAliases: [], category: 'main-lineup' } as Artist],
+      ]),
+    });
+
+    // Ari's phone has never heard of the band. Without the extras it would be
+    // skipped as an unknown id and her 12:40 would read as free.
+    const receiver = seedRepo();
+    await commitImport(asRepo(receiver), decodeEnvelope(code));
+
+    const landed = receiver._state.performances.get('main-sat-late-openers');
+    expect(landed?.startTime).toBe('12:40');
+    expect(landed?.addedLocally).toBe(true);
+    expect(receiver._state.artists.get('late-openers')?.name).toBe('Late Openers');
+  });
+
+  it('rollback removes a band the import created, not just its times', async () => {
+    const sender = seedRepo();
+    sender._state.performances.set(
+      'main-sat-late-openers',
+      perf('main-sat-late-openers', { artistId: 'late-openers', startTime: '12:40', addedLocally: true }),
+    );
+    const code = encodeSchedule(await sender.allPerformances(), 'robbie', NOW, {
+      artistById: new Map([
+        ['late-openers', { id: 'late-openers', name: 'Late Openers', searchAliases: [], category: 'main-lineup' } as Artist],
+      ]),
+    });
+
+    const receiver = seedRepo();
+    const { backupId } = await commitImport(asRepo(receiver), decodeEnvelope(code));
+    expect(receiver._state.performances.has('main-sat-late-openers')).toBe(true);
+
+    await rollbackImport(asRepo(receiver), backupId);
+    // putPerformances only upserts, so without an explicit delete the band
+    // would survive an undone import.
+    expect(receiver._state.performances.has('main-sat-late-openers')).toBe(false);
+    expect(receiver._state.artists.has('late-openers')).toBe(false);
   });
 });
 

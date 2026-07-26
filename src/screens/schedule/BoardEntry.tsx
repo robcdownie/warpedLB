@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Check, CornerDownLeft, Info, Search, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Check, CornerDownLeft, Info, Plus, Search, Undo2, X } from 'lucide-react';
 import { useApp } from '@/store/appStore';
 import { Button, cx } from '@/components/ui';
 import { applyScheduleEdit } from './scheduleEdit';
@@ -39,6 +39,7 @@ export function BoardEntry() {
   const locationById = useApp((s) => s.locationById);
   const selections = useApp((s) => s.selections);
   const updatePerformance = useApp((s) => s.updatePerformance);
+  const addBoardBand = useApp((s) => s.addBoardBand);
   const updateSettings = useApp((s) => s.updateSettings);
   const undo = useApp((s) => s.undoLastScheduleEdit);
   const savedDay = useApp((s) => s.settings.boardDay);
@@ -222,6 +223,27 @@ export function BoardEntry() {
     // After React flushes the cleared fields, so focus lands reliably on the
     // next row's time input (and iOS keeps the keyboard up).
     requestAnimationFrame(() => timeRef.current?.focus());
+  };
+
+  /** Create a band that isn't in the announced lineup, then place it. */
+  const addAndCommit = async (raw: string) => {
+    const name = raw.trim().replace(/\s+/g, ' ');
+    if (!name) return;
+    if (!parseBoardTime(timeRef.current?.value ?? timeRaw)) {
+      flash('Enter a time first.', 'error');
+      timeRef.current?.focus();
+      return;
+    }
+    const perf = await addBoardBand({
+      name,
+      day,
+      type: isUnplugged ? 'unplugged' : 'main',
+    });
+    if (!perf) {
+      flash("That name can't be used — check the spelling.", 'error');
+      return;
+    }
+    await commit(perf, name);
   };
 
   const clearRow = async (perf: Performance, name: string) => {
@@ -480,12 +502,26 @@ export function BoardEntry() {
             +{more} more {more === 1 ? 'match' : 'matches'} — type another letter or two.
           </p>
         )}
+        {/* A band on the wall that isn't in the announced lineup used to be a
+            dead end — the set simply couldn't be entered, and the day would
+            still count itself complete around the hole. */}
         {bandQuery.trim() && suggestions.length === 0 && (
-          <p className="mt-2 flex items-start gap-1.5 text-[12px] text-warn">
-            <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden />
-            No {isUnplugged ? 'unplugged' : day === 'saturday' ? 'Saturday' : 'Sunday'} band matches
-            “{bandQuery}”. Check the spelling on the board — or it may be a late addition.
-          </p>
+          <div className="mt-2">
+            <p className="flex items-start gap-1.5 text-[12px] text-warn">
+              <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden />
+              No {isUnplugged ? 'unplugged' : day === 'saturday' ? 'Saturday' : 'Sunday'} band
+              matches “{bandQuery.trim()}” — check the spelling, or add it as a late addition.
+            </p>
+            <button
+              type="button"
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => void addAndCommit(bandQuery)}
+              className="mt-1.5 flex min-h-touch w-full items-center gap-2 rounded-lg border border-dashed border-[var(--border-strong)] px-3 text-left text-[13px] font-semibold text-accent active:opacity-80"
+            >
+              <Plus size={15} className="shrink-0" aria-hidden />
+              Add “{bandQuery.trim()}” to the board
+            </button>
+          </div>
         )}
       </div>
 
@@ -529,7 +565,14 @@ export function BoardEntry() {
                 <span className="w-[74px] shrink-0 font-display text-[14px] text-primary tabular-nums">
                   {formatTime(p.startTime)}
                 </span>
-                <span className="min-w-0 flex-1 truncate text-[14px] text-primary">{name}</span>
+                <span className="min-w-0 flex-1 truncate text-[14px] text-primary">
+                  {name}
+                  {p.addedLocally && (
+                    <span className="ml-1.5 rounded-full bg-[var(--surface-sunken)] px-1.5 text-[10px] font-semibold text-muted">
+                      added
+                    </span>
+                  )}
+                </span>
                 <button
                   type="button"
                   onClick={() => void clearRow(p, name)}

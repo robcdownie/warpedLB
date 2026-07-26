@@ -22,6 +22,7 @@ export function ScheduleIoScreen() {
   const exportSource = useApp(
     (s) => s.userById.get(s.settings.activeUserId)?.name ?? s.settings.activeUserId,
   );
+  const artistById = useApp((s) => s.artistById);
   const provenance = useApp((s) => s.settings.schedule);
   const status = useScheduleStatus();
   const [tab, setTab] = useState<'export' | 'import'>('import');
@@ -37,8 +38,11 @@ export function ScheduleIoScreen() {
     return encodeSchedule(performances, exportSource, new Date().toISOString(), {
       revision: provenance.scheduleRevision + 1,
       completeDays,
+      // Names for any band typed in off the board, so the receiving phone can
+      // create it rather than silently skipping the set.
+      artistById,
     });
-  }, [performances, exportSource, provenance.scheduleRevision, status]);
+  }, [performances, exportSource, provenance.scheduleRevision, status, artistById]);
   const scheduledCount = performances.filter((p) => p.startTime && p.stageId).length;
 
   return (

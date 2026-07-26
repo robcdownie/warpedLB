@@ -224,6 +224,44 @@ function validateSchedule(
     return;
   }
 
+  // Bands the sender typed in off the board. They're legitimately absent from
+  // this phone's lineup, so they must not be counted as unknown — but they do
+  // have to be well-formed, since importing them creates records.
+  const declared = new Set<string>();
+  if (d.x !== undefined) {
+    if (!Array.isArray(d.x) || d.x.length > LIMITS.maxPerformances) {
+      errors.push({
+        code: 'malformed-added-band',
+        message: 'The added bands in this code are malformed and it cannot be imported.',
+      });
+      return;
+    }
+    for (const row of d.x) {
+      const [perfId, aId, name] = Array.isArray(row) ? row : [];
+      if (
+        !isPlainId(perfId) ||
+        !isPlainId(aId) ||
+        typeof name !== 'string' ||
+        !name.trim() ||
+        name.length > 120
+      ) {
+        errors.push({
+          code: 'malformed-added-band',
+          message: 'The added bands in this code are malformed and it cannot be imported.',
+        });
+        return;
+      }
+      declared.add(perfId);
+    }
+    warnings.push({
+      code: 'added-bands',
+      message:
+        d.x.length === 1
+          ? '1 band in this code was typed in off the board and will be added to your lineup.'
+          : `${d.x.length} bands in this code were typed in off the board and will be added to your lineup.`,
+    });
+  }
+
   let unknownPerf = 0;
   const unknownStages = new Set<string>();
   let badTime = 0;
@@ -234,7 +272,7 @@ function validateSchedule(
       return;
     }
     const [id, stageId, start, end] = row;
-    if (!ctx.knownPerformanceIds.has(id)) unknownPerf++;
+    if (!ctx.knownPerformanceIds.has(id) && !declared.has(id)) unknownPerf++;
     if (stageId != null) {
       if (!isPlainId(stageId) || !ctx.knownStageIds.has(stageId)) unknownStages.add(String(stageId));
     }
