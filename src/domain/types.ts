@@ -233,6 +233,12 @@ export interface AppSettings {
   boardPicksOnly: boolean;
   /** Which Schedule sub-view you were last on. */
   scheduleView: 'schedule' | 'editor' | 'conflicts' | null;
+  /**
+   * Conflict ids put away with "Ignore". Ids are derived from the sets
+   * involved, so an ignore survives a re-render but correctly reappears if a
+   * set time changes and the clash becomes a different one.
+   */
+  ignoredConflicts: string[];
 }
 
 export interface HistoryEntry {

@@ -14,6 +14,7 @@ import { useFestivalClock } from '@/hooks/useFestivalClock';
 import { useGroupCtx } from '@/hooks/useGroupCtx';
 import { usePlanStatuses } from '@/hooks/usePlanStatus';
 import { useConflicts } from '@/hooks/useConflicts';
+import { conflictDay, conflictStartMinute, sortByClock } from '@/domain/conflicts';
 import { useMeetups } from '@/hooks/useMeetups';
 import { useDayScheduleStatus } from '@/hooks/useScheduleStatus';
 import { formatTime, formatMinutes, formatDuration, hhmmToMinutes, dayLabel } from '@/domain/time';
@@ -86,7 +87,22 @@ export function NowDashboard({
   }, [myStops, nowMinute]);
 
   const focus = current ?? next;
-  const upcomingConflicts = conflicts.filter((c) => c.severity !== 'info').slice(0, 3);
+  // useConflicts returns BOTH days, unsorted, and this took the first three —
+  // so on Sunday evening the "Heads up" slot showed Saturday morning's
+  // warnings, about bands that had already played.
+  const upcomingConflicts = useMemo(
+    () =>
+      sortByClock(
+        conflicts.filter((c) => {
+          if (c.severity === 'info') return false;
+          if (conflictDay(c, performanceById) !== day) return false;
+          const start = conflictStartMinute(c, performanceById);
+          return start === null || start >= nowMinute - 30;
+        }),
+        performanceById,
+      ).slice(0, 3),
+    [conflicts, performanceById, day, nowMinute],
+  );
 
   return (
     <Screen>

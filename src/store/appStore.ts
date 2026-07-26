@@ -66,6 +66,9 @@ interface AppState {
   markDayComplete: (day: DayId, verifiedBy: string) => Promise<void>;
   unmarkDayComplete: (day: DayId) => Promise<void>;
   dismissTip: (tip: TipId) => Promise<void>;
+  /** Put a conflict away. Until now "Ignore" was wired to nothing at all. */
+  ignoreConflict: (id: string) => Promise<void>;
+  unignoreConflicts: () => Promise<void>;
   postponeSetupStep: (step: string) => Promise<void>;
   completeOnboarding: (activeUserId: string) => Promise<void>;
   restartOnboarding: () => Promise<void>;
@@ -314,6 +317,17 @@ export const useApp = create<AppState>((set, get) => ({
     const cur = get().settings.setupPostponed;
     if (cur.includes(step)) return;
     await get().updateSettings({ setupPostponed: [...cur, step] });
+  },
+
+  ignoreConflict: async (id) => {
+    const cur = get().settings.ignoredConflicts;
+    if (cur.includes(id)) return;
+    await get().updateSettings({ ignoredConflicts: [...cur, id] });
+  },
+
+  unignoreConflicts: async () => {
+    if (!get().settings.ignoredConflicts.length) return;
+    await get().updateSettings({ ignoredConflicts: [] });
   },
 
   completeOnboarding: async (activeUserId) => {

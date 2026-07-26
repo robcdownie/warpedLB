@@ -19,6 +19,7 @@ import { FirstUseTip } from '@/components/FirstUseTip';
 import { useApp } from '@/store/appStore';
 import { useFestivalClock } from '@/hooks/useFestivalClock';
 import { useConflicts } from '@/hooks/useConflicts';
+import { conflictDay, conflictStartMinute, sortByClock } from '@/domain/conflicts';
 import { useDayScheduleStatus } from '@/hooks/useScheduleStatus';
 import { withEffectiveEnds, type EffectiveEnd } from '@/domain/endTimes';
 import { attendWindow } from '@/domain/splitSet';
@@ -106,8 +107,20 @@ export function FestivalScreen({
         .map((s) => users.find((u) => u.id === s.userId))
         .filter((u): u is NonNullable<typeof u> => !!u)
     : [];
-  const nextConflict = conflicts.find(
-    (c) => c.severity !== 'info' && c.performanceIds.some((id) => performanceById.get(id)?.day === day),
+  // Detection order, not clock order — so at 8 PM this slot was still showing
+  // the 1 PM warning under the heading "Decide now".
+  const nextConflict = useMemo(
+    () =>
+      sortByClock(
+        conflicts.filter((c) => {
+          if (c.severity === 'info') return false;
+          if (conflictDay(c, performanceById) !== day) return false;
+          const start = conflictStartMinute(c, performanceById);
+          return start === null || start >= atMinute - 30;
+        }),
+        performanceById,
+      )[0],
+    [conflicts, performanceById, day, atMinute],
   );
 
   const checkInHere = async () => {

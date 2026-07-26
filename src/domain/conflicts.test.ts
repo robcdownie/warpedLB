@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { detectConflicts, type ConflictContext } from './conflicts';
+import {
+  detectConflicts,
+  sortByClock,
+  conflictStartMinute,
+  type ConflictContext,
+} from './conflicts';
 import type { Performance, Selection, MapLocation, Priority, Artist } from './types';
 
 // Real names, because the point of these conflicts is that they name bands.
@@ -135,8 +140,8 @@ describe('conflict engine (spec §22, §28)', () => {
     // The sets still overlap on paper, so the card stays — but it's a note now.
     expect(note.type).toBe('split-plan');
     expect(note.severity).toBe('info');
-    // …and it no longer nags about an undecided choice.
-    expect(conflicts.some((c) => c.type === 'undecided-attendance')).toBe(false);
+    // …and it's the only card for the pair — no second "A or B?" alongside it.
+    expect(conflicts.filter((c) => c.performanceIds.includes('a')).length).toBe(1);
   });
 
   it('a split note says how much of each set you get, and asks nothing', () => {
@@ -191,5 +196,53 @@ describe('conflict engine (spec §22, §28)', () => {
     ];
     const conflicts = detectConflicts('saturday', ctx(perfs, [sel('a'), sel('b'), sel('c')]));
     expect(conflicts.some((x) => x.type === 'overlap' || x.type === 'must-see-conflict')).toBe(false);
+  });
+});
+
+describe('one card per decision', () => {
+  it('reports an overlap once, not twice, when both picks are undecided', () => {
+    // Undecided is the default for every fresh pick, so a second
+    // "A or B?" card meant every overlap was reported — and counted — twice.
+    const perfs = [perf('a', 'ghost', '15:00', '15:40'), perf('b', 'rex', '15:20', '16:00')];
+    const conflicts = detectConflicts('saturday', ctx(perfs, [sel('a'), sel('b')]));
+    const forPair = conflicts.filter(
+      (c) => c.performanceIds.includes('a') && c.performanceIds.includes('b'),
+    );
+    expect(forPair).toHaveLength(1);
+    expect(forPair[0].type).toBe('overlap');
+  });
+
+  it('reports one card for a band missing both a stage and a time', () => {
+    const p: Performance = { ...perf('a', 'ghost', '15:00'), stageId: null, startTime: null };
+    const conflicts = detectConflicts('saturday', ctx([p], [sel('a')]));
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].title).toBe('Jimmy Eat World: no stage or time yet');
+  });
+
+  it('drops the no-op "keep both undecided" button', () => {
+    const perfs = [perf('a', 'ghost', '15:00', '15:40'), perf('b', 'rex', '15:20', '16:00')];
+    const overlap = detectConflicts('saturday', ctx(perfs, [sel('a'), sel('b')])).find(
+      (c) => c.type === 'overlap',
+    )!;
+    expect(overlap.actions.some((x) => x.kind === 'undecided')).toBe(false);
+  });
+});
+
+describe('putting conflicts in clock order', () => {
+  it('sorts by the earliest set involved, with untimed notes last', () => {
+    const perfs = [
+      perf('a', 'ghost', '19:00', '19:40'),
+      perf('b', 'rex', '19:20', '20:00'),
+      perf('c', 'beatbox', '13:00', '13:40'),
+      { ...perf('filler', 'ghost', '13:10'), startTime: null } as Performance,
+    ];
+    const conflicts = detectConflicts(
+      'saturday',
+      ctx(perfs, [sel('a'), sel('b'), sel('c'), sel('filler')]),
+    );
+    const sorted = sortByClock(conflicts, new Map(perfs.map((p) => [p.id, p])));
+    const first = conflictStartMinute(sorted[0], new Map(perfs.map((p) => [p.id, p])));
+    expect(first).toBe(19 * 60); // the 7 PM clash, not the untimed note
+    expect(conflictStartMinute(sorted[sorted.length - 1], new Map(perfs.map((p) => [p.id, p])))).toBeNull();
   });
 });

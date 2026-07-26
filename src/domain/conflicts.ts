@@ -19,7 +19,6 @@ export type ConflictType =
   | 'split-plan' // overlapping, but you've already planned to catch part of each
   | 'insufficient-travel'
   | 'back-to-back' // 3+ in a row
-  | 'undecided-attendance'
   | 'missing-stage'
   | 'missing-time';
 
@@ -93,38 +92,35 @@ export function detectConflicts(day: DayId, ctx: ConflictContext): Conflict[] {
   const nameOf = (p: Performance): string =>
     ctx.artistById.get(p.artistId)?.name ?? 'This set';
 
-  // Missing-data conflicts.
+  // Missing data. One card per band, not one per missing field: a pick with
+  // neither a stage nor a time used to emit two cards saying the same thing,
+  // so before the board was entered ~20 picks produced ~40 notes — all of them
+  // above the real clashes, in the hour when the real clashes appear.
+  //
+  // A set with a start but no end isn't called out at all: that's the normal
+  // case off the board, and the assumed length is disclosed on the conflicts it
+  // actually affects.
   for (const { perf } of active) {
     const name = nameOf(perf);
-    if (!perf.stageId) {
-      conflicts.push({
-        id: `missing-stage-${perf.id}`,
-        type: 'missing-stage',
-        severity: 'info',
-        performanceIds: [perf.id],
-        artistNames: [name],
-        title: `${name}: stage not set`,
-        message: `${name} has no stage yet. It will be checked for conflicts once a stage is entered.`,
-        usesEstimatedTime: false,
-        actions: [],
-      });
-    }
-    if (!perf.startTime) {
-      conflicts.push({
-        id: `missing-time-${perf.id}`,
-        type: 'missing-time',
-        severity: 'info',
-        performanceIds: [perf.id],
-        artistNames: [name],
-        title: `${name}: set time not set`,
-        message: `No start time for ${name} yet — add it in the Schedule editor to check for overlaps.`,
-        usesEstimatedTime: false,
-        actions: [],
-      });
-    }
-    // A set with a start but no end is no longer called out on its own: it is
-    // the normal case off the board, and the assumed set length is disclosed on
-    // the conflicts it actually affects.
+    if (perf.stageId && perf.startTime) continue;
+    const missing = !perf.startTime && !perf.stageId
+      ? 'no stage or time yet'
+      : !perf.startTime
+        ? 'no set time yet'
+        : 'no stage yet';
+    conflicts.push({
+      id: `missing-${perf.id}`,
+      type: perf.startTime ? 'missing-stage' : 'missing-time',
+      severity: 'info',
+      performanceIds: [perf.id],
+      artistNames: [name],
+      title: `${name}: ${missing}`,
+      message:
+        `${name} can't be checked for clashes until it has both a stage and a start time. ` +
+        'Add them in Enter Times.',
+      usesEstimatedTime: false,
+      actions: [],
+    });
   }
 
   // Fully-scheduled sets (start + stage) for overlap/travel analysis.
@@ -158,29 +154,13 @@ export function detectConflicts(day: DayId, ctx: ConflictContext): Conflict[] {
         // A split plan IS a resolution. The sets still overlap on paper, so
         // the card stays (with the real times), but it stops shouting.
         const split = hasSplit(a.sel) && hasSplit(b.sel);
+        // One card per clashing pair. There used to be a second, near-identical
+        // "A or B?" card whenever both picks were undecided — which is the
+        // default for every fresh pick, so in practice every overlap was
+        // reported twice, and the badge counted the same decision twice.
         conflicts.push(
           buildOverlap(a, b, bothMustSee, usesEstimated, split),
         );
-        // Undecided attendance on an overlapping pair.
-        if (
-          !split &&
-          a.sel.attendanceDecision === 'undecided' &&
-          b.sel.attendanceDecision === 'undecided'
-        ) {
-          conflicts.push({
-            id: `undecided-${a.perf.id}-${b.perf.id}`,
-            type: 'undecided-attendance',
-            severity: 'warn',
-            performanceIds: [a.perf.id, b.perf.id],
-            artistNames: [a.artistName, b.artistName],
-            title: `${a.artistName} or ${b.artistName}?`,
-            message:
-              `You haven't chosen between ${a.artistName} and ${b.artistName}. ` +
-              'Pick one to attend — or plan to catch part of both — so your plan and meetups stay accurate.',
-            usesEstimatedTime: usesEstimated,
-            actions: attendActions(a, b),
-          });
-        }
       } else if (j === i + 1 && b.start >= aEnd && a.stage && b.stage && a.stage.id !== b.stage.id) {
         // Consecutive on different stages — check walking time. Only the
         // chronologically adjacent pair matters: the user walks A→B→C, so
@@ -337,7 +317,8 @@ function attendActions(a: Scheduled, b: Scheduled): ConflictAction[] {
     { kind: 'attend', label: `Attend ${a.artistName}`, attendId: a.perf.id, performanceIds: ids },
     { kind: 'attend', label: `Attend ${b.artistName}`, attendId: b.perf.id, performanceIds: ids },
     { kind: 'split', label: 'Catch part of both', performanceIds: ids },
-    { kind: 'undecided', label: 'Keep both undecided', performanceIds: ids },
+    // "Keep both undecided" is gone: undecided is the default state of every
+    // fresh pick, so it was a button that changed nothing.
     { kind: 'ignore', label: 'Ignore warning', performanceIds: ids },
   ];
 }
@@ -378,6 +359,55 @@ function formatMin(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
   return formatTime(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+}
+
+/** The day a conflict is about, from the sets involved. */
+export function conflictDay(
+  c: Conflict,
+  performanceById: Map<string, Performance>,
+): DayId | null {
+  for (const id of c.performanceIds) {
+    const day = performanceById.get(id)?.day;
+    if (day) return day;
+  }
+  return null;
+}
+
+/** The wall-clock minute a conflict is about — its earliest involved set. */
+export function conflictStartMinute(
+  c: Conflict,
+  performanceById: Map<string, Performance>,
+): number | null {
+  let min: number | null = null;
+  for (const id of c.performanceIds) {
+    const start = performanceById.get(id)?.startTime;
+    if (!start) continue;
+    const m = hh(start);
+    if (min === null || m < min) min = m;
+  }
+  return min;
+}
+
+/**
+ * Conflicts in the order they'll happen, soonest first.
+ *
+ * Detection order put every missing-data note at the top and left real clashes
+ * below them, so the decisions that mattered were buried under notes about
+ * bands with no time yet. Anything with no time sorts last — it can't be
+ * placed on the clock.
+ */
+export function sortByClock(
+  conflicts: Conflict[],
+  performanceById: Map<string, Performance>,
+): Conflict[] {
+  return [...conflicts].sort((a, b) => {
+    const am = conflictStartMinute(a, performanceById);
+    const bm = conflictStartMinute(b, performanceById);
+    if (am === null && bm === null) return 0;
+    if (am === null) return 1;
+    if (bm === null) return -1;
+    return am - bm;
+  });
 }
 
 /** Count of conflicts by severity (for badges). */

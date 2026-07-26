@@ -11,7 +11,7 @@ import { useConflicts } from '@/hooks/useConflicts';
 import { useScheduleStatus } from '@/hooks/useScheduleStatus';
 import { ScheduleStatusStrip, ProvisionalNote } from '@/components/ScheduleStatusStrip';
 import { FirstUseTip } from '@/components/FirstUseTip';
-import { conflictSummary } from '@/domain/conflicts';
+import { conflictSummary, conflictDay, sortByClock } from '@/domain/conflicts';
 import { getNow, dayLabel } from '@/domain/time';
 import { recoverablePicks, planCount } from '@/domain/recovery';
 import { withEffectiveEnds } from '@/domain/endTimes';
@@ -27,7 +27,8 @@ export function ScheduleScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => v
   const activeUserId = useApp((s) => s.settings.activeUserId);
   const status = useScheduleStatus();
   const conflicts = useConflicts(activeUserId);
-  const summary = conflictSummary(conflicts);
+  const performanceById = useApp((s) => s.performanceById);
+  const ignoredConflicts = useApp((s) => s.settings.ignoredConflicts);
 
   const updateSettings = useApp((s) => s.updateSettings);
   const savedView = useApp((s) => s.settings.scheduleView);
@@ -47,6 +48,18 @@ export function ScheduleScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => v
   };
   const [entryMode, setEntryMode] = useState<EntryMode>('board');
   const [day, setDay] = useState<DayId>(today);
+
+  // The badge used to count BOTH days including every info note, in the pink
+  // reserved for a real must-see clash — so an unentered board read as ~100
+  // alarms, none of which were clashes. Count what's actually a decision, on
+  // the day being looked at, and colour it by what it is.
+  const summary = useMemo(() => {
+    const onDay = conflicts.filter(
+      (c) => conflictDay(c, performanceById) === day && !ignoredConflicts.includes(c.id),
+    );
+    return conflictSummary(onDay);
+  }, [conflicts, performanceById, day, ignoredConflicts]);
+  const badgeCount = summary.high + summary.warn;
 
   return (
     <Screen>
@@ -72,9 +85,14 @@ export function ScheduleScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => v
         </SubTab>
         <SubTab active={view === 'conflicts'} onClick={() => setView('conflicts')}>
           <AlertTriangle size={15} aria-hidden /> Conflicts
-          {summary.total > 0 && (
-            <span className="ml-0.5 rounded-full bg-warp-pink px-1.5 text-[10px] font-bold text-white">
-              {summary.total}
+          {badgeCount > 0 && (
+            <span
+              className={cx(
+                'ml-0.5 rounded-full px-1.5 text-[10px] font-bold text-white',
+                summary.high > 0 ? 'bg-warp-pink' : 'bg-warp-yellow text-warp-ink',
+              )}
+            >
+              {badgeCount}
             </span>
           )}
         </SubTab>
@@ -156,11 +174,27 @@ function ConflictsView({ day, setDay }: { day: DayId; setDay: (d: DayId) => void
   const performances = useApp((s) => s.performances);
   const turnoverBuffer = useApp((s) => s.settings.turnoverBuffer);
   const setAttendance = useApp((s) => s.setAttendance);
+  const ignored = useApp((s) => s.settings.ignoredConflicts);
+  const ignoreConflict = useApp((s) => s.ignoreConflict);
+  const unignoreConflicts = useApp((s) => s.unignoreConflicts);
   const dayComplete = useScheduleStatus().byDay[day].status === 'complete';
-  const conflicts = useConflicts(activeUserId).filter((c) => {
-    const p = performanceById.get(c.performanceIds[0]);
-    return p?.day === day;
-  });
+  const all = useConflicts(activeUserId);
+
+  const { decisions, notes, hiddenCount } = useMemo(() => {
+    const onDay = all.filter((c) => conflictDay(c, performanceById) === day);
+    const visible = onDay.filter((c) => !ignored.includes(c.id));
+    return {
+      // Real clashes in the order they'll happen; missing-data notes below,
+      // where they can't bury a decision.
+      decisions: sortByClock(
+        visible.filter((c) => c.type !== 'missing-stage' && c.type !== 'missing-time'),
+        performanceById,
+      ),
+      notes: visible.filter((c) => c.type === 'missing-stage' || c.type === 'missing-time'),
+      hiddenCount: onDay.length - visible.length,
+    };
+  }, [all, performanceById, day, ignored]);
+  const conflicts = [...decisions, ...notes];
 
   const count = useMemo(
     () => planCount(activeUserId, day, selections, performanceById),
@@ -248,24 +282,54 @@ function ConflictsView({ day, setDay }: { day: DayId; setDay: (d: DayId) => void
                 : 'Nothing clashes among the sets that have times yet.'
             }
           />
+          {hiddenCount > 0 && (
+            <IgnoredNote count={hiddenCount} onShow={() => void unignoreConflicts()} />
+          )}
           <ProvisionalNote day={day} what="clashes" />
         </>
       ) : (
         <>
+          {notes.length > 0 && decisions.length > 0 && (
+            <p className="mb-2 px-1 text-[12px] text-secondary">
+              {decisions.length} to decide · {notes.length} still missing a stage or time
+            </p>
+          )}
           <div className="space-y-2">
             {conflicts.map((c) => (
               <ConflictCard
                 key={c.id}
                 conflict={c}
+                onIgnore={(x) => void ignoreConflict(x.id)}
                 userId={activeUserId}
                 onDropped={(ids, names) => setJustDropped({ ids, names })}
               />
             ))}
           </div>
+          {hiddenCount > 0 && (
+            <IgnoredNote count={hiddenCount} onShow={() => void unignoreConflicts()} />
+          )}
           <ProvisionalNote day={day} what="clashes" />
         </>
       )}
     </>
+  );
+}
+
+/** Ignored conflicts stay counted and reversible — never silently gone. */
+function IgnoredNote({ count, onShow }: { count: number; onShow: () => void }) {
+  return (
+    <div className="mt-2 flex items-center gap-2 px-1">
+      <span className="min-w-0 flex-1 text-[12px] text-muted">
+        {count} ignored on this day.
+      </span>
+      <button
+        type="button"
+        onClick={onShow}
+        className="min-h-touch shrink-0 text-[12px] font-semibold text-accent"
+      >
+        Show again
+      </button>
+    </div>
   );
 }
 
