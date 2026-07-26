@@ -104,7 +104,7 @@ export function Pill({
 }) {
   const colors: Record<string, string> = {
     default: 'bg-[var(--surface-sunken)] text-secondary',
-    pink: 'bg-warp-pink/15 text-warp-pink',
+    pink: 'bg-warp-pink/15 text-pink',
     blue: 'bg-accent-soft text-accent',
     yellow: 'bg-warp-yellow/20 text-warn',
     danger: 'bg-warp-danger/15 text-danger',

@@ -27,14 +27,14 @@ export function MeetupCard({ meetup, highlight }: { meetup: MeetupSuggestion; hi
   return (
     <Card className={cx('p-4', highlight && 'border-warp-pink/50 ring-1 ring-warp-pink/30')}>
       {highlight && (
-        <div className="mb-1 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-warp-pink">
+        <div className="mb-1 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-pink">
           <Users size={12} aria-hidden /> Best meetup
         </div>
       )}
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="flex items-center gap-1.5 font-display text-[17px] text-primary">
-            <Clock size={16} className="text-warp-pink" aria-hidden />
+            <Clock size={16} className="text-pink" aria-hidden />
             {formatMinutes(meetup.startMinute)} – {formatMinutes(meetup.endMinute)}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-1 text-[14px] text-secondary">

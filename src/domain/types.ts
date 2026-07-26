@@ -239,6 +239,8 @@ export interface AppSettings {
    * set time changes and the clash becomes a different one.
    */
   ignoredConflicts: string[];
+  /** Light theme + boosted contrast, for reading the screen in direct sun. */
+  daylightMode: boolean;
 }
 
 export interface HistoryEntry {

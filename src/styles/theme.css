@@ -61,15 +61,18 @@
   --surface-sunken: #e9eef7;
   --text-primary: #0a0f1c;
   --text-secondary: #4a5568;
-  --text-muted: #6b7280;
+  --text-muted: #5b6472;
   --border-subtle: #e2e8f0;
   --border-strong: #cbd5e1;
   --nav-bg: #0a0f1c;
   /* Readable-on-surface accents (brand blue is too dark for dark surfaces). */
   --accent-text: #1f5fa8;
-  --ok-text: #1e9e54;
-  --warn-text: #9a7a00;
+  --ok-text: #157a3f;
+  --warn-text: #7a6000;
   --danger-text: #d43c3c;
+  /* Brand pink is a FILL colour: as text on white it lands at 3.6:1. This is
+     the readable stand-in for pink text, and the reason .text-pink exists. */
+  --pink-text: #d61e60;
   /* Press/hover wash that is visible on both themes. */
   --press: rgba(0, 0, 0, 0.06);
   /* Selected-chip fill — needs a dark-mode boost to stay legible against
@@ -99,6 +102,7 @@
   --ok-text: #3fd47f;
   --warn-text: #ffd21e;
   --danger-text: #ff6b6b;
+  --pink-text: #ff6fa5;
   --press: rgba(255, 255, 255, 0.08);
   color-scheme: dark;
 }
@@ -122,6 +126,7 @@
     --ok-text: #3fd47f;
     --warn-text: #ffd21e;
     --danger-text: #ff6b6b;
+    --pink-text: #ff6fa5;
     --press: rgba(255, 255, 255, 0.08);
     color-scheme: dark;
   }
@@ -227,6 +232,24 @@ body {
 }
 .text-danger {
   color: var(--danger-text);
+}
+.text-pink {
+  color: var(--pink-text);
+}
+
+/* Daylight mode: pull the quieter text toward primary and darken the status
+   colours further. Aimed at a phone at full brightness in direct July sun,
+   where the normal secondary/muted greys wash out completely. */
+:root[data-contrast='high'] {
+  --text-secondary: #1e2532;
+  --text-muted: #39414f;
+  --border-subtle: #c3cddc;
+  --border-strong: #93a3b8;
+  --accent-text: #14477f;
+  --ok-text: #0f5c2f;
+  --warn-text: #5c4800;
+  --danger-text: #a82626;
+  --pink-text: #ab174c;
 }
 
 /* Hide scrollbars on horizontal chip rows but keep scrollability. */

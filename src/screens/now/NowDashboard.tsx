@@ -410,7 +410,7 @@ function NextUpCard({
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
               {!isNow && minutesUntil > 0 && (
-                <span className="flex items-center gap-1 font-semibold text-warp-pink">
+                <span className="flex items-center gap-1 font-semibold text-pink">
                   <Clock size={13} aria-hidden /> in {formatDuration(minutesUntil)}
                   {preview && <span className="font-normal text-muted">(preview)</span>}
                 </span>

@@ -292,7 +292,7 @@ function SharedView({ day }: { day: DayId }) {
                 <MapPin size={13} aria-hidden /> {slot.stage?.name ?? 'TBA'} · {formatMinutes(slot.startMinute)}
               </div>
             </div>
-            <span className="rounded-full bg-warp-pink/15 px-2 py-1 text-[12px] font-bold text-warp-pink">
+            <span className="rounded-full bg-warp-pink/15 px-2 py-1 text-[12px] font-bold text-pink">
               {slot.attendees.length} picked this
             </span>
           </div>

@@ -9,7 +9,7 @@ import type { DayId } from '@/domain/types';
 const URGENCY_STYLE: Record<LeaveByInfo['urgency'], { bg: string; text: string; border: string }> = {
   plenty: { bg: 'bg-warp-ok/10', text: 'text-ok', border: 'border-warp-ok/30' },
   soon: { bg: 'bg-warp-yellow/15', text: 'text-warn', border: 'border-warp-yellow/50' },
-  now: { bg: 'bg-warp-pink/10', text: 'text-warp-pink', border: 'border-warp-pink/50' },
+  now: { bg: 'bg-warp-pink/10', text: 'text-pink', border: 'border-warp-pink/50' },
   late: { bg: 'bg-warp-danger/10', text: 'text-danger', border: 'border-warp-danger/50' },
 };
 

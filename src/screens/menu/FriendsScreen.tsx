@@ -126,7 +126,7 @@ export function FriendsScreen() {
               <FriendAvatar user={u} size={44} ring={u.id === activeUserId} />
               <span className="text-[13px] font-semibold text-primary">{u.name}</span>
               {u.id === activeUserId && (
-                <span className="flex items-center gap-0.5 text-[10px] font-bold text-warp-pink">
+                <span className="flex items-center gap-0.5 text-[10px] font-bold text-pink">
                   <UserCheck size={11} aria-hidden /> You
                 </span>
               )}
@@ -197,7 +197,7 @@ export function FriendsScreen() {
                   <div className="flex items-center gap-2">
                     <span className="font-display text-[15px] text-primary">{u.name}</span>
                     {isMe && (
-                      <span className="rounded-full bg-warp-pink/15 px-1.5 text-[10px] font-bold text-warp-pink">
+                      <span className="rounded-full bg-warp-pink/15 px-1.5 text-[10px] font-bold text-pink">
                         You
                       </span>
                     )}

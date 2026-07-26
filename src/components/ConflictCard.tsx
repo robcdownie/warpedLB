@@ -100,7 +100,7 @@ export function ConflictCard({
                   a.kind === 'attend'
                     ? 'bg-warp-blue-500 text-white'
                     : a.kind === 'split'
-                      ? 'border border-warp-pink/50 bg-warp-pink/10 text-warp-pink'
+                      ? 'border border-warp-pink/50 bg-warp-pink/10 text-pink'
                       : 'border border-subtle bg-[var(--surface-card)] text-secondary',
                 )}
               >

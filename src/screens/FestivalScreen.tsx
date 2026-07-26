@@ -10,6 +10,7 @@ import {
   Handshake,
   LifeBuoy,
   Footprints,
+  Sun,
 } from 'lucide-react';
 import { Button, Card, cx } from '@/components/ui';
 import { FriendAvatar } from '@/components/FriendAvatar';
@@ -64,6 +65,7 @@ export function FestivalScreen({
   const users = useApp((s) => s.users);
   const turnoverBuffer = useApp((s) => s.settings.turnoverBuffer);
   const updateSettings = useApp((s) => s.updateSettings);
+  const daylight = useApp((s) => s.settings.daylightMode);
   const putCheckIn = useApp((s) => s.putCheckIn);
   const conflicts = useConflicts(activeUserId);
   const dayInfo = useDayScheduleStatus(day);
@@ -149,6 +151,21 @@ export function FestivalScreen({
             {live ? dayLabel(day) : `Previewing ${dayLabel(day)}`}
           </div>
         </div>
+        {/* Outdoors, dark mode is the harder read — and the theme follows the
+            phone, so a phone on auto-dark is on the wrong one all afternoon
+            with nothing saying so. One tap, where you'd notice. */}
+        <button
+          type="button"
+          onClick={() => void updateSettings({ daylightMode: !daylight })}
+          aria-label={daylight ? 'Turn off daylight mode' : 'Daylight mode — easier to read in sun'}
+          aria-pressed={daylight}
+          className={cx(
+            'min-h-touch min-w-touch flex items-center justify-center rounded-xl',
+            daylight ? 'bg-warp-yellow text-warp-ink' : 'bg-[var(--surface-sunken)] text-secondary',
+          )}
+        >
+          <Sun size={19} aria-hidden />
+        </button>
         <button
           type="button"
           onClick={() => void updateSettings({ festivalMode: false })}
@@ -203,7 +220,7 @@ export function FestivalScreen({
                 <MapPin size={15} aria-hidden />
                 {focusStage?.name ?? 'Stage TBA'}
               </div>
-              <div className="mt-1 text-[14px] font-semibold text-warp-pink">
+              <div className="mt-1 text-[14px] font-semibold text-pink">
                 {current
                   ? `Started ${formatTime(focus.startTime)}`
                   : `${formatTime(focus.startTime)} · in ${formatDuration(

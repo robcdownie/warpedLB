@@ -133,7 +133,7 @@ export function PersonalSchedule({ day }: { day: DayId }) {
                     {stage?.name ?? 'Stage TBA'}
                   </div>
                   {window?.partial && (
-                    <div className="mt-0.5 flex items-start gap-1 text-[12px] font-semibold text-warp-pink">
+                    <div className="mt-0.5 flex items-start gap-1 text-[12px] font-semibold text-pink">
                       <Split size={12} className="mt-0.5 shrink-0" aria-hidden />
                       <span>
                         Split plan: {formatMinutes(window.start)}–{formatMinutes(window.end)}{' '}

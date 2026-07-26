@@ -159,7 +159,7 @@ export function BandsScreen() {
           aria-hidden={collapsed || undefined}
         >
           <h1 className="font-display text-[22px] text-primary">My Bands</h1>
-          <span className="rounded-full bg-warp-pink/15 px-2.5 py-1 text-[13px] font-bold text-warp-pink">
+          <span className="rounded-full bg-warp-pink/15 px-2.5 py-1 text-[13px] font-bold text-pink">
             {selectedCount} selected
           </span>
         </div>
