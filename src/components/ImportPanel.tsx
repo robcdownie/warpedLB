@@ -30,7 +30,10 @@ export function ImportPanel({
   const applyImport = useApp((s) => s.applyImport);
   const rollback = useApp((s) => s.rollbackImport);
 
-  const [method, setMethod] = useState<Method>('paste');
+  // Scanning is what actually happens between two phones in a field; the
+  // paste box was the default, so both people landed staring at an empty
+  // textarea with no QR anywhere on screen.
+  const [method, setMethod] = useState<Method>('scan');
   const [pasteText, setPasteText] = useState('');
   const [env, setEnv] = useState<Envelope | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);

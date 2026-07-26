@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react';
 import { toChunks } from '@/domain/share/chunker';
 import { cx } from './ui';
 
@@ -14,6 +14,11 @@ export function QrDisplay({ code, className }: { code: string; className?: strin
   const [idx, setIdx] = useState(0);
   const [dataUrls, setDataUrls] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Cycling beats hand-cranking: the sender can't see the receiver's progress
+  // counter, so every frame needed a spoken handshake. The collector keys parts
+  // by index, so re-scanning a part is free and order doesn't matter — one
+  // person holds the phone still, the other just points until they're done.
+  const [playing, setPlaying] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,6 +41,33 @@ export function QrDisplay({ code, className }: { code: string; className?: strin
     if (idx >= chunks.length) setIdx(0);
   }, [chunks.length, idx]);
 
+  useEffect(() => {
+    if (!playing || chunks.length < 2 || !dataUrls.length) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % chunks.length), 900);
+    return () => clearInterval(t);
+  }, [playing, chunks.length, dataUrls.length]);
+
+  // Hold the screen on while a code is up: iOS dims at 30s, which is exactly
+  // when the other phone is still fighting the glare.
+  useEffect(() => {
+    let lock: { release: () => Promise<void> } | null = null;
+    let released = false;
+    const wakeLock = (navigator as Navigator & {
+      wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void> }> };
+    }).wakeLock;
+    void wakeLock?.request('screen').then(
+      (l) => {
+        if (released) void l.release();
+        else lock = l;
+      },
+      () => undefined,
+    );
+    return () => {
+      released = true;
+      void lock?.release().catch(() => undefined);
+    };
+  }, []);
+
   if (error) {
     return <p className="text-center text-[13px] text-warp-danger">Could not render QR: {error}</p>;
   }
@@ -44,35 +76,51 @@ export function QrDisplay({ code, className }: { code: string; className?: strin
 
   return (
     <div className={cx('flex flex-col items-center gap-2', className)}>
+      {/* Bigger than it was: the old 240px box put a dense code at ~2.7 screen
+          pixels per module, right at the scanner's floor before sunlight. */}
       <div className="rounded-2xl bg-white p-3 shadow-sm">
         {dataUrls[idx] ? (
           <img
             src={dataUrls[idx]}
             alt={`Share QR code${multi ? ` part ${idx + 1} of ${chunks.length}` : ''}`}
-            width={240}
-            height={240}
-            className="h-60 w-60"
+            width={320}
+            height={320}
+            className="h-[min(80vw,320px)] w-[min(80vw,320px)]"
           />
         ) : (
-          <div className="flex h-60 w-60 items-center justify-center text-muted">Generating…</div>
+          <div className="flex h-[min(80vw,320px)] w-[min(80vw,320px)] items-center justify-center text-muted">
+            Generating…
+          </div>
         )}
       </div>
       {multi && (
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => setIdx((i) => (i - 1 + chunks.length) % chunks.length)}
+            onClick={() => {
+              setPlaying(false);
+              setIdx((i) => (i - 1 + chunks.length) % chunks.length);
+            }}
             aria-label="Previous part"
             className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface-sunken)]"
           >
             <ChevronLeft size={18} aria-hidden />
           </button>
-          <span className="text-[13px] font-semibold text-secondary">
-            Part {idx + 1} / {chunks.length}
-          </span>
           <button
             type="button"
-            onClick={() => setIdx((i) => (i + 1) % chunks.length)}
+            onClick={() => setPlaying((p) => !p)}
+            aria-label={playing ? 'Pause cycling' : 'Cycle through parts'}
+            className="flex min-h-touch items-center gap-1.5 rounded-full bg-[var(--surface-sunken)] px-3 text-[13px] font-semibold text-secondary"
+          >
+            {playing ? <Pause size={15} aria-hidden /> : <Play size={15} aria-hidden />}
+            Part {idx + 1} / {chunks.length}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPlaying(false);
+              setIdx((i) => (i + 1) % chunks.length);
+            }}
             aria-label="Next part"
             className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface-sunken)]"
           >
@@ -82,7 +130,9 @@ export function QrDisplay({ code, className }: { code: string; className?: strin
       )}
       {multi && (
         <p className="max-w-[40ch] text-center text-[12px] text-muted">
-          This export needs {chunks.length} codes. Have your friend scan each part — order doesn&apos;t matter.
+          {playing
+            ? `Cycling through ${chunks.length} codes — just hold the phone still and let them point at it until their counter fills up.`
+            : `This export needs ${chunks.length} codes. Order doesn't matter, and re-scanning one is harmless.`}
         </p>
       )}
     </div>

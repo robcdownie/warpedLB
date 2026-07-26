@@ -23,7 +23,16 @@ export function QrScanner({
   const [status, setStatus] = useState<'idle' | 'starting' | 'scanning' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ received: number; total: number } | null>(null);
+  const [mixed, setMixed] = useState<string | null>(null);
   const lastSeen = useRef<string>('');
+
+  /** Throw away a half-collected scan — needed after a mid-scan re-export. */
+  const startOver = () => {
+    collectorRef.current.reset();
+    lastSeen.current = '';
+    setProgress(null);
+    setMixed(null);
+  };
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -34,7 +43,10 @@ export function QrScanner({
       setError(null);
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' },
+          // Unconstrained, iOS hands back 640x480, which puts a dense
+          // multi-part code right at jsQR's resolution floor before glare is
+          // even in the picture.
+          video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
           audio: false,
         });
         if (stopped) return;
@@ -78,9 +90,13 @@ export function QrScanner({
       const res = collectorRef.current.add(text);
       setProgress({ received: collectorRef.current.received, total: collectorRef.current.total });
       if (res.error) {
-        // ignore transient errors; keep scanning
+        // Swallowing this left the counter frozen at "1 / 4" forever with no
+        // explanation — the sender re-exporting mid-scan is enough to cause it,
+        // and the only escape was to leave the screen and come back.
+        setMixed(res.error);
         return;
       }
+      setMixed(null);
       if (res.complete && res.code) {
         stopped = true;
         cleanup();
@@ -123,6 +139,27 @@ export function QrScanner({
         <p className="text-[13px] font-semibold text-secondary">
           Scanned {progress.received} / {progress.total} parts
         </p>
+      )}
+      {mixed && (
+        <div className="flex flex-col items-center gap-1.5 rounded-lg bg-warp-yellow/20 px-3 py-2">
+          <p className="text-center text-[12px] font-semibold text-warn">{mixed}</p>
+          <button
+            type="button"
+            onClick={startOver}
+            className="min-h-touch text-[13px] font-bold text-accent"
+          >
+            Start over
+          </button>
+        </div>
+      )}
+      {!mixed && progress && progress.total > 1 && progress.received < progress.total && (
+        <button
+          type="button"
+          onClick={startOver}
+          className="min-h-touch text-[12px] font-semibold text-muted"
+        >
+          Start over
+        </button>
       )}
       {status === 'scanning' && (!progress || progress.total <= 1) && (
         <p className="text-[13px] text-muted">Point at the QR code…</p>

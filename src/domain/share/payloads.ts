@@ -14,6 +14,12 @@ import type {
 import { encodeEnvelope, type Envelope, type PayloadType } from './codec';
 import { plural } from '../plural';
 
+/**
+ * Biggest avatar worth putting in a share code (~8 KB of data URL). Above this
+ * the QR count explodes; below it, it's a frame or two.
+ */
+export const MAX_SHARED_AVATAR_CHARS = 8000;
+
 // Compact payload shapes. Deflate handles redundancy, but short field names keep
 // QR codes small. Codes are arrays-of-tuples with documented positions.
 
@@ -39,7 +45,11 @@ export function buildSelectionsData(user: User, selections: Selection[]): Select
     n: user.name,
     i: user.initials,
     c: user.colorKey,
-    a: user.avatar ?? null,
+    // A photo is raw base64 that doesn't deflate: a normal iPhone shot turns a
+    // one-frame code into thousands of QR images rendered on the main thread,
+    // which freezes or kills the sending phone. Small ones ride along; anything
+    // real gets dropped, and the receiver just sees initials.
+    a: user.avatar && user.avatar.length <= MAX_SHARED_AVATAR_CHARS ? user.avatar : null,
     s: mine.map((s) => {
       const tuple: [string, number, number, string?] = [
         s.performanceId,
