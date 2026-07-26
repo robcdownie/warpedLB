@@ -33,7 +33,7 @@ The field shows its reading (`→ 2:05 PM`) before you commit, so a mistyped tim
 
 ## You don't need end times
 
-Only start times are on the board, and that's all the app wants. Each set's end is estimated from the next set on the same stage (minus the turnover buffer under **Menu → Travel & Crowd**) and is always labeled “est.”. Enter a column in order and every estimate fills itself in. Type an exact **End** in the A–Z list only if you happen to know one.
+Only start times are on the board, and that's all the app wants. A set with no end counts as a typical **30 minutes**, always labeled “est.”. If the next set on the same stage starts sooner than that, the app ends it just before that one instead (minus the turnover buffer under **Menu → Travel & Crowd**). A later next set doesn't stretch it — a half-empty column means the stage is idle, not that the band played for three hours. Type an exact **End** in the A–Z list only if you happen to know one.
 
 ## Fixing things
 

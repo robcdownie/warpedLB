@@ -8,7 +8,7 @@ import type {
   Priority,
   Artist,
 } from './types';
-import { withEffectiveEnds, type EffectiveEnd } from './endTimes';
+import { withEffectiveEnds, TYPICAL_SET_MINUTES, type EffectiveEnd } from './endTimes';
 import { travelMinutes, overrideMap } from './travel';
 import { hasSplit } from './splitSet';
 import { formatTime, formatDuration } from './time';
@@ -19,7 +19,6 @@ export type ConflictType =
   | 'insufficient-travel'
   | 'back-to-back' // 3+ in a row
   | 'undecided-attendance'
-  | 'unknown-end'
   | 'missing-stage'
   | 'missing-time';
 
@@ -121,21 +120,10 @@ export function detectConflicts(day: DayId, ctx: ConflictContext): Conflict[] {
         usesEstimatedTime: false,
         actions: [],
       });
-    } else if (ends.get(perf.id)?.kind === 'unknown') {
-      conflicts.push({
-        id: `unknown-end-${perf.id}`,
-        type: 'unknown-end',
-        severity: 'info',
-        performanceIds: [perf.id],
-        artistNames: [name],
-        title: `${name}: end time unknown`,
-        message:
-          `${name} has no end time and nothing scheduled after it on this stage, ` +
-          'so overlap can only be estimated from the start time.',
-        usesEstimatedTime: false,
-        actions: [],
-      });
     }
+    // A set with a start but no end is no longer called out on its own: it is
+    // the normal case off the board, and the assumed set length is disclosed on
+    // the conflicts it actually affects.
   }
 
   // Fully-scheduled sets (start + stage) for overlap/travel analysis.
@@ -210,7 +198,7 @@ export function detectConflicts(day: DayId, ctx: ConflictContext): Conflict[] {
               `${a.artistName} ends around ${formatMin(aEnd)} at ${a.stage.shortName ?? a.stage.name}, ` +
               `and ${b.artistName} starts ${formatMin(b.start)} at ${b.stage.shortName ?? b.stage.name}. ` +
               `Only ${formatDuration(gap)} between them but the walk is about ${formatDuration(t.minutes)} ` +
-              `(${a.end.kind !== 'exact' ? 'estimated end' : 'exact end'}, approximate walk).`,
+              `(${endLabel(a.end.kind)}, approximate walk).`,
             usesEstimatedTime: usesEstimated,
             actions: attendActions(a, b),
           });
@@ -268,13 +256,29 @@ function buildOverlap(
         'My Day shows the trimmed times.'
       : `${a.artistName} starts at ${formatMin(a.start)} at ${aStage}. ` +
         `${b.artistName} starts at ${formatMin(b.start)} at ${bStage}. ` +
-        (usesEstimated ? 'The overlap uses an estimated end time. ' : 'Based on exact times. ') +
+        endBasis(a, b) +
         (bothMustSee
           ? `Both are marked Must-See — you can only catch part of each.`
           : `Higher priority right now: ${higher.artistName}.`),
     usesEstimatedTime: usesEstimated,
     actions: attendActions(a, b),
   };
+}
+
+/** Name the basis of an end time, so a guess never reads as a listed time. */
+function endLabel(kind: EffectiveEnd['kind']): string {
+  if (kind === 'exact') return 'exact end';
+  if (kind === 'assumed') return `assumed ${TYPICAL_SET_MINUTES}-min set`;
+  return 'estimated end';
+}
+
+/** The one-line disclosure of what an overlap between two sets rests on. */
+function endBasis(a: Scheduled, b: Scheduled): string {
+  if (a.end.kind === 'exact' && b.end.kind === 'exact') return 'Based on exact times. ';
+  if (a.end.kind === 'assumed' || b.end.kind === 'assumed') {
+    return `No end time listed, so this assumes a ${TYPICAL_SET_MINUTES}-minute set. `;
+  }
+  return 'The overlap uses an estimated end time. ';
 }
 
 function attendActions(a: Scheduled, b: Scheduled): ConflictAction[] {

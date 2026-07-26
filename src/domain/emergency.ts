@@ -63,7 +63,7 @@ export function buildEmergencyText(input: EmergencyInput): string {
       const stage = p.stageId ? input.locationById.get(p.stageId)?.name ?? 'Stage TBA' : 'Stage TBA';
       const end = ends.get(p.id);
       lines.push('');
-      lines.push(`${formatTime(p.startTime)}${end?.hhmm ? ` – ${formatTime(end.hhmm)}${end.kind === 'estimated' ? ' (est)' : ''}` : ''}`);
+      lines.push(`${formatTime(p.startTime)}${end?.hhmm ? ` – ${formatTime(end.hhmm)}${end.kind !== 'exact' ? ' (est)' : ''}` : ''}`);
       lines.push(`   ${artist}`);
       lines.push(`   ${stage}`);
       prevEnd = end?.minutes ?? start + 30;

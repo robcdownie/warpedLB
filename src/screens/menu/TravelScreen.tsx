@@ -5,6 +5,7 @@ import { useApp } from '@/store/appStore';
 import { STAGES } from '@/data/stages';
 import { stageMatrix, pairKey } from '@/domain/travel';
 import { formatDuration } from '@/domain/time';
+import { TYPICAL_SET_MINUTES } from '@/domain/endTimes';
 import type { CrowdDelay } from '@/domain/types';
 
 const CROWD: { id: CrowdDelay; label: string; desc: string }[] = [
@@ -57,8 +58,9 @@ export function TravelScreen() {
       <Card className="mb-4 p-4">
         <h2 className="mb-1 font-display text-[15px] text-primary">Stage turnover buffer</h2>
         <p className="mb-3 text-[13px] text-secondary">
-          When a set has no end time, we estimate it ends this many minutes before the next set on
-          the same stage.
+          A set with no end time counts as {TYPICAL_SET_MINUTES} minutes long. If the next set on
+          the same stage starts sooner than that, we end it this many minutes before that one
+          instead.
         </p>
         <Stepper
           value={turnoverBuffer}

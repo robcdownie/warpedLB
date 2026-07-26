@@ -17,8 +17,9 @@ const UNPLUGGED_STAGE_ID = 'warped-unplugged-stage';
  * starts: one column per stage, each column a top-to-bottom list of TIME then
  * BAND. This screen matches that shape so you can rattle down a column instead
  * of hunting the alphabet: pick a stage, type the time as bare digits, type a
- * few letters of the band, tap. End times are never asked for — they're
- * estimated from the next set on the same stage (see domain/endTimes.ts).
+ * few letters of the band, tap. End times are never asked for — a set counts as
+ * a typical half hour unless the next set on its stage cuts it shorter (see
+ * domain/endTimes.ts).
  */
 export function BoardEntry() {
   const performances = useApp((s) => s.performances);

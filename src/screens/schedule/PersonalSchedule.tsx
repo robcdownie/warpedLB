@@ -108,7 +108,9 @@ export function PersonalSchedule({ day }: { day: DayId }) {
                   </div>
                   <div className="text-[11px] text-muted">
                     {end?.kind === 'unknown' ? '· · ·' : formatTime(end?.hhmm ?? null)}
-                    {end?.kind === 'estimated' && <span className="block text-[9px]">est.</span>}
+                    {(end?.kind === 'estimated' || end?.kind === 'assumed') && (
+                      <span className="block text-[9px]">est.</span>
+                    )}
                   </div>
                 </div>
                 <div className="min-w-0 flex-1">

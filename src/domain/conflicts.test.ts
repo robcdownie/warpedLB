@@ -140,14 +140,37 @@ describe('conflict engine (spec §22, §28)', () => {
   });
 
   it('labels overlaps that rely on an estimated end time', () => {
-    // 'a' has no end; next set on the SAME stage gives an estimate.
+    // 'a' has no end; the next set on the SAME stage cuts it short of 30 min.
     const perfs = [
       perf('a', 'ghost', '15:00'),
-      perf('filler', 'ghost', '15:50'),
-      perf('b', 'rex', '15:30', '16:00'),
+      perf('filler', 'ghost', '15:25'),
+      perf('b', 'rex', '15:10', '16:00'),
     ];
     const conflicts = detectConflicts('saturday', ctx(perfs, [sel('a'), sel('b')]));
     const overlap = conflicts.find((c) => c.type === 'overlap' || c.type === 'must-see-conflict');
     expect(overlap?.usesEstimatedTime).toBe(true);
+    expect(overlap?.message).toContain('estimated end time');
+  });
+
+  it('says so when an overlap rests on the assumed set length', () => {
+    // Nothing after 'a' on its stage — it counts as a 30-minute set.
+    const perfs = [perf('a', 'ghost', '15:00'), perf('b', 'rex', '15:20', '16:00')];
+    const conflicts = detectConflicts('saturday', ctx(perfs, [sel('a'), sel('b')]));
+    const overlap = conflicts.find((c) => c.type === 'overlap' || c.type === 'must-see-conflict');
+    expect(overlap?.usesEstimatedTime).toBe(true);
+    expect(overlap?.message).toContain('assumes a 30-minute set');
+  });
+
+  it('does not stretch a set to the next band on its stage', () => {
+    // The bug: 'a' at 1:00 with nothing else on Ghost until 5:00 used to run
+    // four hours and conflict with every band entered in between.
+    const perfs = [
+      perf('a', 'ghost', '13:00'),
+      perf('filler', 'ghost', '17:00'),
+      perf('b', 'rex', '14:00'),
+      perf('c', 'beatbox', '15:00'),
+    ];
+    const conflicts = detectConflicts('saturday', ctx(perfs, [sel('a'), sel('b'), sel('c')]));
+    expect(conflicts.some((x) => x.type === 'overlap' || x.type === 'must-see-conflict')).toBe(false);
   });
 });

@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertTriangle, X, Clock } from 'lucide-react';
 import { useApp } from '@/store/appStore';
 import { cx } from '@/components/ui';
 import { applyScheduleEdit } from './scheduleEdit';
 import { STAGES } from '@/data/stages';
+import { withEffectiveEnds, TYPICAL_SET_MINUTES } from '@/domain/endTimes';
+import { formatTime } from '@/domain/time';
 import type { Performance } from '@/domain/types';
 
 /** Inline stage + start/end editor for a single performance. Saves immediately. */
@@ -17,9 +19,17 @@ export function PerfRowEditor({
   lockStage?: boolean;
 }) {
   const performances = useApp((s) => s.performances);
+  const turnoverBuffer = useApp((s) => s.settings.turnoverBuffer);
   const updatePerformance = useApp((s) => s.updatePerformance);
   const [warn, setWarn] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
+
+  // What the app will actually use if End is left blank — shown so the field
+  // reads as genuinely optional instead of a gap you have to fill.
+  const end = useMemo(
+    () => withEffectiveEnds(performances, turnoverBuffer).get(perf.id),
+    [performances, turnoverBuffer, perf.id],
+  );
 
   const save = async (patch: Parameters<typeof applyScheduleEdit>[1]) => {
     const res = applyScheduleEdit(perf, patch, performances);
@@ -66,6 +76,13 @@ export function PerfRowEditor({
           />
         </div>
       </div>
+      {!perf.endTime && perf.startTime && end?.hhmm && (
+        <p className="mt-1.5 text-[12px] text-muted">
+          {end.kind === 'assumed'
+            ? `No end time set — counted as a ${TYPICAL_SET_MINUTES}-minute set, ending about ${formatTime(end.hhmm)}.`
+            : `No end time set — estimated about ${formatTime(end.hhmm)} from the next set on this stage.`}
+        </p>
+      )}
       {err && (
         <p className="mt-1.5 flex items-center gap-1 text-[12px] font-semibold text-warp-danger">
           <AlertTriangle size={13} aria-hidden /> {err}
