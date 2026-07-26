@@ -179,6 +179,29 @@ export function timeUntilFestival(reference: Date = new Date()): {
 }
 
 /**
+ * Festival-local time on the final day when the public app winds down to a
+ * thank-you, the weekend's band list, and a Venmo link — and nothing else.
+ *
+ * Half an hour before the gates close, deliberately. Everything the app is
+ * useful for is decided by then, and the alternative is a planning tool that
+ * outlives the thing it plans.
+ */
+export const WIND_DOWN_AT = '21:30';
+
+/**
+ * True once the public app has wound down. Read from the device clock in
+ * festival-local time, so it flips with no network — the whole app works
+ * offline and this transition has to as well.
+ *
+ * Nothing is deleted when this returns true. Every screen is still in the
+ * build; App.tsx simply stops routing to them.
+ */
+export function windDownStarted(reference: Date = new Date()): boolean {
+  const last = EVENT.days[EVENT.days.length - 1];
+  return reference.getTime() >= zonedDateTimeToMs(last.date, WIND_DOWN_AT);
+}
+
+/**
  * Convert a festival-local date + HH:mm into an absolute epoch-ms value,
  * accounting for the festival timezone's UTC offset on that date.
  */

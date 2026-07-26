@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { EVENT } from '@/config/event';
-import { parseBoardTime, shouldAdvanceBoardTime, timeUntilFestival, getNow } from './time';
+import { parseBoardTime, shouldAdvanceBoardTime, timeUntilFestival, getNow, windDownStarted } from './time';
 
 // The board lists start times only, within festival hours (11:00-22:00), so a
 // bare number is unambiguous. These cases are transcribed from the real 2025
@@ -147,5 +147,38 @@ describe('the festival day does not end at midnight', () => {
     // …and the previous calendar day, which is what the clock falls back to.
     const nightBefore = new Date(afterMidnight.getTime() - 24 * 60 * 60 * 1000);
     expect(getNow(nightBefore).day).toBe('sunday');
+  });
+});
+
+// This flag strips the public app down to a thank-you, the band list and a
+// Venmo link. A false positive takes the map away from someone standing in the
+// venue, so the boundary is pinned in festival-local time. PDT is UTC-7.
+describe('windDownStarted', () => {
+  const at = (iso: string) => windDownStarted(new Date(iso));
+
+  it('is false all through the first day', () => {
+    expect(at('2026-07-25T21:45:00-07:00')).toBe(false);
+    expect(at('2026-07-25T23:59:00-07:00')).toBe(false);
+  });
+
+  it('is false during the final day, up to the minute before', () => {
+    expect(at('2026-07-26T11:00:00-07:00')).toBe(false);
+    expect(at('2026-07-26T21:29:59-07:00')).toBe(false);
+  });
+
+  it('is true from 21:30 on the final day', () => {
+    expect(at('2026-07-26T21:30:00-07:00')).toBe(true);
+  });
+
+  it('reads the boundary in festival time, not UTC', () => {
+    // 21:30 PDT is 04:30Z the next day. An implementation that compared UTC
+    // clock time would fire this at 14:30 local — mid-afternoon, gates open.
+    expect(at('2026-07-26T14:30:00-07:00')).toBe(false);
+    expect(at('2026-07-27T04:30:00Z')).toBe(true);
+  });
+
+  it('stays wound down afterwards', () => {
+    expect(at('2026-07-27T09:00:00-07:00')).toBe(true);
+    expect(at('2026-12-01T09:00:00-08:00')).toBe(true);
   });
 });

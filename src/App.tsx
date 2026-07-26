@@ -15,6 +15,9 @@ import { WarpedWordmark } from './components/WarpedWordmark';
 import { OnboardingFlow } from './screens/onboarding/OnboardingFlow';
 import { FestivalScreen } from './screens/FestivalScreen';
 import { LineupNoticeBanner } from './components/LineupNoticeBanner';
+import { WrapUpScreen } from './screens/now/WrapUpScreen';
+import { useClock } from './hooks/useClock';
+import { windDownStarted } from './domain/time';
 
 export function App() {
   useThemeEffect();
@@ -30,6 +33,11 @@ export function App() {
   // Not just "did onboarding finish" — does this phone actually resolve to a
   // real profile? See the gate below.
   const activeUser = useApp((s) => s.userById.get(s.settings.activeUserId));
+
+  // Tick so the wind-down happens on its own. Someone holding the app at 21:29
+  // shouldn't have to reload to reach the send-off — and at 21:29 in a crowd
+  // they very likely can't. A minute is plenty for a once-a-weekend switch.
+  const windDown = windDownStarted(useClock(60_000));
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuRoute, setMenuRoute] = useState<MenuRoute | null>(null);
@@ -116,6 +124,27 @@ export function App() {
             <p className="text-sm text-secondary">Loading your festival plan…</p>
           </>
         )}
+      </div>
+    );
+  }
+
+  // Wind-down: from 21:30 on the final day the public app is a thank-you, the
+  // weekend's band list, and a Venmo link. Nothing else is routed to.
+  //
+  // Ahead of onboarding on purpose — a stranger who installs it on the Monday
+  // after should get the send-off, not a setup flow for a festival that's over.
+  // Behind the hydration gate, also on purpose: the band list is the point, and
+  // it can't be read until IndexedDB is open.
+  //
+  // Reads the device clock, so it flips with no signal. Every other screen is
+  // still in this build; see WIND_DOWN_AT in domain/time.ts.
+  if (mode === 'prod' && windDown) {
+    return (
+      <div className="surface-app relative flex h-full flex-col">
+        <main className="flex-1 overflow-y-auto">
+          <WrapUpScreen final />
+        </main>
+        <UpdateToast />
       </div>
     );
   }

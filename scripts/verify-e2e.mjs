@@ -9,6 +9,24 @@ import { join, dirname, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, webkit, devices } from '@playwright/test';
 
+/**
+ * Every pass runs with the clock pinned to mid-festival, then resumed so time
+ * still flows normally from there.
+ *
+ * Two reasons. The app is a festival planner, so almost every screen it renders
+ * depends on what "now" is — running the suite against the wall clock meant the
+ * result drifted with the date. And from 21:30 on the final day the public app
+ * winds down to a thank-you (WIND_DOWN_AT in domain/time.ts), which would
+ * otherwise fail every check here from that minute on — including the ones
+ * gating deploys.
+ */
+const HARNESS_NOW = new Date('2026-07-25T14:00:00-07:00');
+
+async function pinClock(page) {
+  await page.clock.install({ time: HARNESS_NOW });
+  await page.clock.resume();
+}
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = join(root, 'dist');
 const BASE = '/warpedLB/';
@@ -74,6 +92,7 @@ async function functionalPass(base) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => console.log('PAGEERROR', e.message));
+  await pinClock(page);
   await page.goto(base, { waitUntil: 'networkidle' });
 
   // The app exposes a debug hook (added for verification). If missing, skip.
@@ -612,6 +631,7 @@ async function renderPass(base, cfg) {
     }, cfg.safeArea);
   }
   const page = await ctx.newPage();
+  await pinClock(page);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
 

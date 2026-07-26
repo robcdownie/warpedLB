@@ -23,9 +23,16 @@ import type { MenuRoute } from '@/components/MenuDrawer';
 export function WrapUpScreen({
   onOpenMenu,
   onDismiss,
+  final = false,
 }: {
-  onOpenMenu: (r: MenuRoute) => void;
-  onDismiss: () => void;
+  onOpenMenu?: (r: MenuRoute) => void;
+  onDismiss?: () => void;
+  /**
+   * Wind-down mode: this screen IS the public app, not a card inside it. There
+   * is nowhere to go back to and no menu to open, so anything that navigates
+   * is left out rather than rendered dead.
+   */
+  final?: boolean;
 }) {
   const activeUserId = useApp((s) => s.settings.activeUserId);
   const selections = useApp((s) => s.selections);
@@ -79,6 +86,21 @@ export function WrapUpScreen({
           </div>
         </div>
       </div>
+
+      {final && (
+        <Card className="mb-4 p-4">
+          <h2 className="font-display text-[17px] text-primary">Thank you for using this</h2>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-secondary">
+            Warped Long Beach is done, and so is the planning half of this app — the schedule, map,
+            group and conflict screens have gone with it. What&apos;s left is your weekend and a way
+            to say thanks.
+          </p>
+          <p className="mt-2 text-[13px] leading-relaxed text-secondary">
+            It was built by one person, for free, with no ads and no accounts, and it never sent
+            your plans anywhere. Thanks for trusting it with your weekend.
+          </p>
+        </Card>
+      )}
 
       {w.empty ? (
         <Card className="mb-4 p-4">
@@ -177,7 +199,7 @@ export function WrapUpScreen({
         </p>
       </Card>
 
-      {!w.empty && (
+      {!final && !w.empty && (
         <Card className="mb-4 p-4">
           <h2 className="font-display text-[15px] text-primary">Keep a copy</h2>
           <p className="mt-1.5 text-[13px] leading-relaxed text-secondary">
@@ -187,16 +209,18 @@ export function WrapUpScreen({
           <Button
             variant="secondary"
             className="mt-3 w-full py-2.5"
-            onClick={() => onOpenMenu('data')}
+            onClick={() => onOpenMenu?.('data')}
           >
             <Download size={15} aria-hidden /> Export my plan
           </Button>
         </Card>
       )}
 
-      <Button variant="ghost" className="mb-2 w-full py-3 text-[15px]" onClick={onDismiss}>
-        Back to the app <ChevronRight size={16} aria-hidden />
-      </Button>
+      {!final && (
+        <Button variant="ghost" className="mb-2 w-full py-3 text-[15px]" onClick={onDismiss}>
+          Back to the app <ChevronRight size={16} aria-hidden />
+        </Button>
+      )}
       <p className="px-1 text-center text-[11px] text-muted">
         Thanks for using it. Have a great rest of your year.
       </p>
