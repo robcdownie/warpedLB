@@ -93,3 +93,53 @@ describe('leave-by planning (add-on §2)', () => {
     expect(urgencyFor(-3)).toBe('late');
   });
 });
+
+describe('what the leave-by card can honestly say', () => {
+  // Mid-set, back-to-back: 'a' runs to 18:30 and 'b' starts 18:35, so the walk
+  // doesn't fit in the gap.
+  const tight = [perf('a', 'ghost', '18:00', '18:30'), perf('b', 'rex', '18:35', '19:10')];
+  const tightCtx = {
+    ...ctx,
+    selections: [sel('a'), sel('b')],
+    performanceById: new Map(tight.map((p) => [p.id, p])),
+    allPerformances: tight,
+  };
+
+  it('reports the earliest you could actually go, not just the clock', () => {
+    // The countdown is measured from now and the urgency from the end of the
+    // set you're standing in, so the card showed a red LIKELY LATE above
+    // "Leave in 22 min" for the entire length of every set.
+    const info = leaveByPlan('member-1', 'saturday', hhmmToMinutes('18:05'), tightCtx)[0];
+    expect(info.earliestDepartureMinute).toBe(hhmmToMinutes('18:30'));
+    expect(info.slackMinutes).toBeGreaterThan(0);
+    expect(info.earliestDepartureMinute).toBeGreaterThan(info.leaveMinute);
+  });
+
+  it('prices staying to the end in minutes of the next set', () => {
+    const info = leaveByPlan('member-1', 'saturday', hhmmToMinutes('18:05'), tightCtx)[0];
+    expect(info.missIfYouStay).toBe(
+      hhmmToMinutes('18:30') + info.walkMinutes - hhmmToMinutes('18:35'),
+    );
+    expect(info.missIfYouStay).toBeGreaterThan(0);
+  });
+
+  it('costs nothing when the gap covers the walk', () => {
+    const info = leaveByPlan('member-1', 'saturday', hhmmToMinutes('15:50'), ctx)[0];
+    expect(info.missIfYouStay).toBeLessThanOrEqual(0);
+  });
+
+  it('admits when a stage is missing instead of implying a zero-minute walk', () => {
+    const gone = [
+      perf('a', 'ghost', '18:00', '18:30'),
+      { ...perf('b', 'rex', '18:35', '19:10'), stageId: 'stage-that-vanished' },
+    ];
+    const info = leaveByPlan('member-1', 'saturday', hhmmToMinutes('18:05'), {
+      ...ctx,
+      selections: [sel('a'), sel('b')],
+      performanceById: new Map(gone.map((p) => [p.id, p])),
+      allPerformances: gone,
+    })[0];
+    expect(info.walkKnown).toBe(false);
+    expect(info.walkMinutes).toBe(0);
+  });
+});

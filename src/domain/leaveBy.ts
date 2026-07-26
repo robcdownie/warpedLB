@@ -42,6 +42,22 @@ export interface LeaveByInfo {
   crowd: CrowdDelay;
   /** True when the previous set's end is an estimate, so slack is fuzzy. */
   usesEstimated: boolean;
+  /**
+   * Earliest you could actually walk away — the end of the set you're standing
+   * in, or now if you're between sets. The card reads from this instead of the
+   * clock, because a red "LIKELY LATE" over "Leave in 22 min" is what taught
+   * people to stop reading the card: both numbers were right, measured from
+   * different baselines, and together they made no sense.
+   */
+  earliestDepartureMinute: number;
+  /**
+   * Minutes of the next set you'd miss by staying to the end of this one.
+   * Zero or less means you're fine. This is the number worth saying out loud —
+   * a deadline is easy to ignore, "you'll miss the first 3 minutes" isn't.
+   */
+  missIfYouStay: number;
+  /** False when a stage is missing, so the walk isn't actually known. */
+  walkKnown: boolean;
 }
 
 export interface LeaveByCtx {
@@ -111,7 +127,8 @@ export function leaveByPlan(
     const fromId = prior?.perf.stageId ?? ENTRANCE_LOCATION_ID;
     const from = ctx.locationById.get(fromId);
     const to = stop.perf.stageId ? ctx.locationById.get(stop.perf.stageId) : undefined;
-    const walk = travelMinutes(from, to, ctx.crowd, omap).minutes;
+    const travel = travelMinutes(from, to, ctx.crowd, omap);
+    const walk = travel.minutes;
 
     // If they're mid-set, they can't leave before it ends (unless they've
     // planned a split, which attendWindow already trimmed).
@@ -129,6 +146,9 @@ export function leaveByPlan(
       toLocationId: to?.id ?? null,
       crowd: ctx.crowd,
       usesEstimated: prior ? prior.endKind !== 'exact' : false,
+      earliestDepartureMinute: earliestDeparture,
+      missIfYouStay: earliestDeparture + walk - stop.window.start,
+      walkKnown: travel.known,
     });
     if (out.length >= limit) break;
   }

@@ -67,9 +67,19 @@ export function LeaveByCard({
   const to = info.toLocationId ? locationById.get(info.toLocationId) : undefined;
   const style = URGENCY_STYLE[info.urgency];
   const slack = info.slackMinutes;
+  // Stuck in a set that runs past the leave-by moment. The countdown is
+  // measured from the clock and the urgency from the end of that set, so
+  // reporting both plainly produced "LIKELY LATE" above "Leave in 22 min" for
+  // the entire length of every set.
+  const stuck = info.earliestDepartureMinute > info.leaveMinute;
 
-  const countdown =
-    slack > 0 ? `Leave in ${formatDuration(slack)}` : slack === 0 ? 'Leave now' : 'Leave-by time has passed';
+  const countdown = stuck
+    ? `Leave the moment ${info.missIfYouStay > 0 ? 'this set ends' : 'this ends'}`
+    : slack > 0
+      ? `Leave in ${formatDuration(slack)}`
+      : slack === 0
+        ? 'Leave now'
+        : 'Leave-by time has passed';
 
   if (compact) {
     return (
@@ -90,15 +100,27 @@ export function LeaveByCard({
           {urgencyLabel(info.urgency)}
         </span>
         <span className={cx('font-display text-[17px]', style.text)}>
-          Leave by {formatMinutes(info.leaveMinute)}
+          {stuck ? countdown : `Leave by ${formatMinutes(info.leaveMinute)}`}
         </span>
       </div>
 
       <p className="mt-1.5 text-[14px] font-semibold text-primary">{artistName}</p>
 
+      {/* What it costs, not when to obey. A deadline is easy to decide to
+          ignore; "you'll miss the first 3 minutes" is a real trade you can
+          make on the spot. */}
+      {info.missIfYouStay > 0 && (
+        <p className="mt-1 text-[13px] leading-relaxed text-secondary">
+          Staying to the end here means missing about{' '}
+          <b className="text-primary">{formatDuration(info.missIfYouStay)}</b> of {artistName}. Cut
+          out {formatDuration(info.missIfYouStay)} early to catch the start.
+        </p>
+      )}
+
       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-secondary">
         <span className="flex items-center gap-1">
-          <Footprints size={13} aria-hidden /> about {formatDuration(info.walkMinutes)}
+          <Footprints size={13} aria-hidden />{' '}
+          {info.walkKnown ? `about ${formatDuration(info.walkMinutes)}` : 'walk unknown'}
         </span>
         <span className="flex items-center gap-1">
           <MapPin size={13} aria-hidden /> {to?.name ?? 'Stage TBA'}
@@ -107,11 +129,17 @@ export function LeaveByCard({
         <span className="text-muted">starts {formatMinutes(info.startMinute)}</span>
       </div>
 
-      <p className={cx('mt-1.5 text-[13px] font-bold', style.text)}>{countdown}</p>
+      {!stuck && <p className={cx('mt-1.5 text-[13px] font-bold', style.text)}>{countdown}</p>}
 
       {info.usesEstimated && (
         <p className="mt-1 flex items-center gap-1 text-[11px] text-warn">
           <TriangleAlert size={11} aria-hidden /> Uses an estimated end time for the set before it.
+        </p>
+      )}
+      {!info.walkKnown && (
+        <p className="mt-1 flex items-center gap-1 text-[11px] text-warn">
+          <TriangleAlert size={11} aria-hidden /> One of these stages isn&apos;t on the map, so the
+          walk isn&apos;t counted.
         </p>
       )}
     </Card>
