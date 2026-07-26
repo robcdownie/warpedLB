@@ -410,6 +410,36 @@ async function functionalPass(base) {
   });
   check('data survives reload', afterReload);
 
+  // 4b. FESTIVAL MODE NAVIGATION. Every tab button on the festival screen was a
+  // dead tap: goTab set the tab but the festival branch only checked menuRoute,
+  // so the same screen re-rendered. Map in particular is one of two primary
+  // one-handed actions on the screen used all day.
+  const festivalNav = await page.evaluate(async () => {
+    const W = window.__WLB__;
+    await W.updateSettings({ festivalMode: true });
+    await new Promise((r) => setTimeout(r, 400));
+    const onFestival = !document.querySelector('nav[aria-label="Primary"]');
+    const mapBtn = [...document.querySelectorAll('button')].find((b) =>
+      /^Map$/.test((b.textContent || '').trim()),
+    );
+    mapBtn?.click();
+    await new Promise((r) => setTimeout(r, 600));
+    const leftFestival = !!document.querySelector('nav[aria-label="Primary"]');
+    // Festival mode is a preference; a detour must not switch it off.
+    const stillOn = W.settings().festivalMode === true;
+    const back = document.querySelector('button[aria-label="Back to Festival mode"]');
+    back?.click();
+    await new Promise((r) => setTimeout(r, 500));
+    const returned = !document.querySelector('nav[aria-label="Primary"]');
+    await W.updateSettings({ festivalMode: false });
+    await new Promise((r) => setTimeout(r, 300));
+    return { onFestival, leftFestival, stillOn, returned };
+  });
+  check('festival mode renders its own screen', festivalNav.onFestival);
+  check('Map on the festival screen actually navigates', festivalNav.leftFestival);
+  check('…without silently turning festival mode off', festivalNav.stillOn);
+  check('…and there is a way back to the festival screen', festivalNav.returned);
+
   // 5. Manual check-in persists.
   await page.evaluate(async () => {
     await window.__WLB__.state().putCheckIn({

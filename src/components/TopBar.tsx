@@ -1,4 +1,4 @@
-import { Menu } from 'lucide-react';
+import { Menu, Minimize2 } from 'lucide-react';
 import { OfflineIndicator } from './OfflineIndicator';
 import { WarpedWordmark } from './WarpedWordmark';
 
@@ -6,9 +6,12 @@ import { WarpedWordmark } from './WarpedWordmark';
 export function TopBar({
   onMenu,
   showOffline = true,
+  onBackToFestival,
 }: {
   onMenu: () => void;
   showOffline?: boolean;
+  /** Present while festival mode is on and you've stepped into the full app. */
+  onBackToFestival?: () => void;
 }) {
   return (
     <header
@@ -27,7 +30,17 @@ export function TopBar({
           <Menu size={24} aria-hidden />
         </button>
         <WarpedWordmark className="h-9" />
-        {showOffline ? (
+        {onBackToFestival ? (
+          <button
+            type="button"
+            onClick={onBackToFestival}
+            aria-label="Back to Festival mode"
+            title="Back to Festival mode"
+            className="min-h-touch min-w-touch -mr-2 flex items-center justify-center rounded-xl text-white active:bg-white/10"
+          >
+            <Minimize2 size={20} aria-hidden />
+          </button>
+        ) : showOffline ? (
           <OfflineIndicator />
         ) : (
           <div className="min-w-touch" aria-hidden />

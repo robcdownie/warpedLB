@@ -32,6 +32,9 @@ export function App() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuRoute, setMenuRoute] = useState<MenuRoute | null>(null);
+  // Festival mode is a persisted preference, so leaving it to look at the Map
+  // shouldn't switch it off. A detour renders the full app with a way back.
+  const [festivalDetour, setFestivalDetour] = useState(false);
 
   useEffect(() => {
     void hydrated();
@@ -45,6 +48,24 @@ export function App() {
   const goTab = (t: TabId) => {
     setMenuRoute(null);
     setTab(t);
+  };
+
+  /**
+   * Navigation out of the Festival screen.
+   *
+   * `goTab` alone did nothing here: the festival branch below only checks
+   * `menuRoute`, so setting the tab re-rendered the same screen. Map, Schedule,
+   * Group and "Decide now" were all dead taps in the mode built for the day
+   * itself — which is why the walking times never got looked at.
+   */
+  const goTabFromFestival = (t: TabId) => {
+    setFestivalDetour(true);
+    goTab(t);
+  };
+
+  const backToFestival = () => {
+    setFestivalDetour(false);
+    setMenuRoute(null);
   };
 
   if (!isHydrated) {
@@ -81,13 +102,13 @@ export function App() {
 
   // Festival Lock Screen: one-handed, answers-in-seconds mode for the day
   // itself. The full app is one tap away and the menu still works.
-  if (festivalMode && !menuRoute) {
+  if (festivalMode && !menuRoute && !festivalDetour) {
     return (
       <div className="surface-app relative flex h-full flex-col">
         <FestivalScreen
           onOpenMenu={openMenuRoute}
           onOpenDrawer={() => setMenuOpen(true)}
-          onGoTab={goTab}
+          onGoTab={goTabFromFestival}
         />
         <MenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} onNavigate={openMenuRoute} />
         <UpdateToast />
@@ -97,7 +118,10 @@ export function App() {
 
   return (
     <div className="surface-app relative flex h-full flex-col">
-      <TopBar onMenu={() => setMenuOpen(true)} />
+      <TopBar
+        onMenu={() => setMenuOpen(true)}
+        onBackToFestival={festivalMode ? backToFestival : undefined}
+      />
       {/* Below TopBar so it clears the iOS status bar in the installed PWA. */}
       {mode === 'demo' && (
         <div className="bg-warp-yellow px-3 py-1 text-center text-[12px] font-bold text-warp-ink">
@@ -120,7 +144,10 @@ export function App() {
         )}
       </main>
 
-      <BottomNav active={menuRoute ? null : activeTab} onChange={goTab} />
+      <BottomNav
+        active={menuRoute ? null : activeTab}
+        onChange={festivalMode ? goTabFromFestival : goTab}
+      />
 
       <MenuDrawer
         open={menuOpen}
