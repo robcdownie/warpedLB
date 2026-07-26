@@ -15,6 +15,7 @@ import { locationVisible, stagesWithSelections } from './map/visibility';
 import { FILTER_LABELS, type FilterKey } from './map/markerMeta';
 import { travelMinutes, overrideMap, MAP_ASPECT } from '@/domain/travel';
 import { formatMinutes, hhmmToMinutes, formatRelative, formatDuration } from '@/domain/time';
+import { withEffectiveEnds } from '@/domain/endTimes';
 import { EVENT } from '@/config/event';
 import type { MenuRoute } from '@/components/MenuDrawer';
 import type { DayId, MapLocation, User } from '@/domain/types';
@@ -64,7 +65,22 @@ export function MapScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => void }
   const [checkInMode, setCheckInMode] = useState(false);
   const mapRef = useRef<MapCanvasHandle>(null);
 
-  const atMinute = followNow && live ? Math.min(CLOSE, Math.max(OPEN, liveMinute)) : sliderMin;
+  // Following live time must NOT be clamped: at 10:20 PM the "Following now"
+  // pill was lit while the clock read 10:00 and every friend was frozen there.
+  const atMinute = followNow && live ? liveMinute : sliderMin;
+  // And the slider has to reach whatever the day actually runs to — a 9:50 PM
+  // set with a 50-minute assumed end lives past the published closing time.
+  const sliderMax = useMemo(() => {
+    const ends = withEffectiveEnds(ctx.allPerformances, ctx.turnoverBuffer);
+    let latest = CLOSE;
+    for (const p of ctx.allPerformances) {
+      if (p.day !== day || !p.startTime) continue;
+      const end = ends.get(p.id)?.minutes;
+      if (end && end > latest) latest = end;
+    }
+    // Ceiling allows the after-midnight window the clock now keeps running.
+    return Math.min(27 * 60, Math.max(latest, live ? liveMinute : CLOSE));
+  }, [ctx.allPerformances, ctx.turnoverBuffer, day, live, liveMinute]);
 
   const selectedStages = useMemo(
     () => stagesWithSelections(selections, performanceById),
@@ -98,13 +114,20 @@ export function MapScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => void }
   // as a lost friend.
   const friendGroups = useMemo(() => {
     const byLoc = new Map<string, FriendPosition[]>();
+    // A check-in on bare map has coordinates but no known location. It used to
+    // be dropped here and never drawn — so "I'm here" on a spot with no pin
+    // removed you from the map for the whole staleness window.
+    const loose: FriendPosition[][] = [];
     for (const fp of friendPositions) {
-      if (!fp.loc) continue;
+      if (!fp.loc) {
+        if (fp.pos.coordinates) loose.push([fp]);
+        continue;
+      }
       const arr = byLoc.get(fp.loc.id) ?? [];
       arr.push(fp);
       byLoc.set(fp.loc.id, arr);
     }
-    return [...byLoc.values()];
+    return [...byLoc.values(), ...loose];
   }, [friendPositions]);
 
   // Alternate stage labels above/below by x-order so near neighbors don't
@@ -295,7 +318,7 @@ export function MapScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => void }
                   user={group[0].user}
                   position={group[0].pos}
                   loc={group[0].loc}
-                  onClick={() => setSelected(group[0].loc!)}
+                  onClick={() => group[0].loc && setSelected(group[0].loc)}
                 />
               ) : (
                 <FriendClusterPin
@@ -407,7 +430,7 @@ export function MapScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => void }
         <input
           type="range"
           min={OPEN}
-          max={CLOSE}
+          max={sliderMax}
           step={5}
           value={atMinute}
           onChange={(e) => { setFollowNow(false); setSliderMin(Number(e.target.value)); }}

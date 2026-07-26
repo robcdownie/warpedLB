@@ -22,6 +22,8 @@ export interface PlannedPosition {
   atMinute: number;
   kind: 'at-stage' | 'traveling' | 'open' | 'not-arrived' | 'done' | 'checked-in' | 'unknown';
   locationId?: string;
+  /** Raw map position for a check-in that isn't at a known pin. */
+  coordinates?: { xPercent: number; yPercent: number };
   towardLocationId?: string;
   performanceId?: string;
   label: string;
@@ -248,6 +250,11 @@ export function positionWithCheckin(
       atMinute,
       kind: 'checked-in',
       locationId: latest.locationId ?? undefined,
+      // Carried through so a check-in on bare map still has somewhere to draw.
+      // Without it, "I'm here" on a spot with no pin removed you from the map
+      // entirely for the whole staleness window — the most natural gesture on
+      // the screen made you invisible.
+      coordinates: latest.customCoordinates ?? undefined,
       label: locName ?? 'Checked in',
       source: 'manual',
       ageMinutes,

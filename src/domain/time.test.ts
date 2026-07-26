@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseBoardTime, shouldAdvanceBoardTime, timeUntilFestival } from './time';
+import { EVENT } from '@/config/event';
+import { parseBoardTime, shouldAdvanceBoardTime, timeUntilFestival, getNow } from './time';
 
 // The board lists start times only, within festival hours (11:00-22:00), so a
 // bare number is unambiguous. These cases are transcribed from the real 2025
@@ -128,5 +129,23 @@ describe('timeUntilFestival', () => {
 
   it('stays ended the following week', () => {
     expect(at('2026-08-02T12:00:00-07:00').ended).toBe(true);
+  });
+});
+
+describe('the festival day does not end at midnight', () => {
+  it('the small hours after the last night are not a festival day', () => {
+    // 00:30 the morning after the FINAL day. getNow reports no festival day,
+    // so the clock used to fall back to a Saturday NOON simulation labelled
+    // "Previewing Saturday" — right when you're in a dark car park trying to
+    // find people. useFestivalClock now looks back a day instead.
+    const last = EVENT.days[EVENT.days.length - 1].date;
+    const [y, m, d] = last.split('-').map(Number);
+    const afterMidnight = new Date(Date.UTC(y, m - 1, d + 1, 7, 30)); // 00:30 PT
+    expect(getNow(afterMidnight).day).toBeNull();
+    expect(getNow(afterMidnight).minutes).toBe(30);
+
+    // …and the previous calendar day, which is what the clock falls back to.
+    const nightBefore = new Date(afterMidnight.getTime() - 24 * 60 * 60 * 1000);
+    expect(getNow(nightBefore).day).toBe('sunday');
   });
 });

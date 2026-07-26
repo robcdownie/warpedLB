@@ -119,7 +119,12 @@ export function FriendPin({
   loc?: MapLocation;
   onClick?: () => void;
 }) {
-  if (!loc) return null;
+  // A check-in on bare map has coordinates but no location — draw it there
+  // rather than dropping the marker.
+  const at = loc
+    ? { xPercent: loc.xPercent, yPercent: loc.yPercent }
+    : position.coordinates;
+  if (!at) return null;
   const traveling = position.kind === 'traveling';
   const manual = position.source === 'manual';
   const hasStaleHistory = !!position.staleCheckIn;
@@ -134,8 +139,8 @@ export function FriendPin({
 
   return (
     <MapMarker
-      xPercent={loc.xPercent}
-      yPercent={loc.yPercent}
+      xPercent={at.xPercent}
+      yPercent={at.yPercent}
       onClick={onClick}
       ariaLabel={positionA11yLabel(position, user.name)}
       anchor="bottom"
