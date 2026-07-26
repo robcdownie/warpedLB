@@ -21,6 +21,20 @@ import { hhmmToMinutes, minutesToHHMM } from './time';
  */
 export const TYPICAL_SET_MINUTES = 30;
 
+/** The late slots run noticeably longer — closer to a headline set. */
+export const LATE_SET_MINUTES = 50;
+
+/**
+ * First start time that counts as a late slot: 4:50 PM. Observed on the day
+ * rather than published, so it's a single number to move if it reads wrong.
+ */
+export const LATE_SET_FROM_MINUTE = 16 * 60 + 50;
+
+/** The assumed length of a set starting at `startMinute`. */
+export function typicalSetMinutes(startMinute: number): number {
+  return startMinute >= LATE_SET_FROM_MINUTE ? LATE_SET_MINUTES : TYPICAL_SET_MINUTES;
+}
+
 export interface EffectiveEnd {
   /** Minutes since midnight, or null if unknown. */
   minutes: number | null;
@@ -33,13 +47,13 @@ export interface EffectiveEnd {
  * @param perf the performance in question
  * @param sameStageSameDay all performances sharing this stage AND day (incl. perf)
  * @param turnoverBuffer minutes to subtract from the next set's start
- * @param typicalSetLength fallback set length when nothing better is known
+ * @param typicalSetLength override the assumed set length (default: by start time)
  */
 export function effectiveEnd(
   perf: Performance,
   sameStageSameDay: Performance[],
   turnoverBuffer: number,
-  typicalSetLength: number = TYPICAL_SET_MINUTES,
+  typicalSetLength?: number,
 ): EffectiveEnd {
   // 1. Exact end wins and is never overwritten.
   if (perf.endTime) {
@@ -55,7 +69,7 @@ export function effectiveEnd(
   }
   if (perf.startTime) {
     const start = hhmmToMinutes(perf.startTime);
-    const assumed = start + typicalSetLength;
+    const assumed = start + (typicalSetLength ?? typicalSetMinutes(start));
     // 2. The next set on the same stage, when it caps the set *shorter* than a
     //    typical one. A later next-set says nothing — the stage is just idle,
     //    or that column of the board isn't filled in yet.
@@ -86,14 +100,14 @@ const endsCache = new WeakMap<Performance[], Map<string, Map<string, EffectiveEn
 export function withEffectiveEnds(
   performances: Performance[],
   turnoverBuffer: number,
-  typicalSetLength: number = TYPICAL_SET_MINUTES,
+  typicalSetLength?: number,
 ): Map<string, EffectiveEnd> {
   let bySettings = endsCache.get(performances);
   if (!bySettings) {
     bySettings = new Map();
     endsCache.set(performances, bySettings);
   }
-  const key = `${turnoverBuffer}:${typicalSetLength}`;
+  const key = `${turnoverBuffer}:${typicalSetLength ?? 'auto'}`;
   const cached = bySettings.get(key);
   if (cached) return cached;
   const result = computeEffectiveEnds(performances, turnoverBuffer, typicalSetLength);
@@ -104,7 +118,7 @@ export function withEffectiveEnds(
 function computeEffectiveEnds(
   performances: Performance[],
   turnoverBuffer: number,
-  typicalSetLength: number,
+  typicalSetLength?: number,
 ): Map<string, EffectiveEnd> {
   const byStageDay = new Map<string, Performance[]>();
   for (const p of performances) {

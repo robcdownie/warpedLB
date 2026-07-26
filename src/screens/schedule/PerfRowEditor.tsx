@@ -4,8 +4,8 @@ import { useApp } from '@/store/appStore';
 import { cx } from '@/components/ui';
 import { applyScheduleEdit } from './scheduleEdit';
 import { STAGES } from '@/data/stages';
-import { withEffectiveEnds, TYPICAL_SET_MINUTES } from '@/domain/endTimes';
-import { formatTime } from '@/domain/time';
+import { withEffectiveEnds } from '@/domain/endTimes';
+import { formatTime, hhmmToMinutes } from '@/domain/time';
 import type { Performance } from '@/domain/types';
 
 /** Inline stage + start/end editor for a single performance. Saves immediately. */
@@ -76,10 +76,10 @@ export function PerfRowEditor({
           />
         </div>
       </div>
-      {!perf.endTime && perf.startTime && end?.hhmm && (
+      {!perf.endTime && perf.startTime && end?.hhmm && end.minutes !== null && (
         <p className="mt-1.5 text-[12px] text-muted">
           {end.kind === 'assumed'
-            ? `No end time set — counted as a ${TYPICAL_SET_MINUTES}-minute set, ending about ${formatTime(end.hhmm)}.`
+            ? `No end time set — counted as a ${end.minutes - hhmmToMinutes(perf.startTime)}-minute set, ending about ${formatTime(end.hhmm)}.`
             : `No end time set — estimated about ${formatTime(end.hhmm)} from the next set on this stage.`}
         </p>
       )}

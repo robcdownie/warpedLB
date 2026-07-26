@@ -8,14 +8,15 @@ import type {
   Priority,
   Artist,
 } from './types';
-import { withEffectiveEnds, TYPICAL_SET_MINUTES, type EffectiveEnd } from './endTimes';
+import { withEffectiveEnds, type EffectiveEnd } from './endTimes';
 import { travelMinutes, overrideMap } from './travel';
-import { hasSplit } from './splitSet';
+import { hasSplit, attendWindow } from './splitSet';
 import { formatTime, formatDuration } from './time';
 
 export type ConflictType =
   | 'overlap' // direct time overlap
   | 'must-see-conflict' // must-see vs must-see overlap
+  | 'split-plan' // overlapping, but you've already planned to catch part of each
   | 'insufficient-travel'
   | 'back-to-back' // 3+ in a row
   | 'undecided-attendance'
@@ -198,7 +199,7 @@ export function detectConflicts(day: DayId, ctx: ConflictContext): Conflict[] {
               `${a.artistName} ends around ${formatMin(aEnd)} at ${a.stage.shortName ?? a.stage.name}, ` +
               `and ${b.artistName} starts ${formatMin(b.start)} at ${b.stage.shortName ?? b.stage.name}. ` +
               `Only ${formatDuration(gap)} between them but the walk is about ${formatDuration(t.minutes)} ` +
-              `(${endLabel(a.end.kind)}, approximate walk).`,
+              `(${endLabel(a)}, approximate walk).`,
             usesEstimatedTime: usesEstimated,
             actions: attendActions(a, b),
           });
@@ -239,44 +240,93 @@ function buildOverlap(
   const higher = PRIORITY_RANK[a.sel.priority] <= PRIORITY_RANK[b.sel.priority] ? a : b;
   const aStage = a.stage?.shortName ?? a.stage?.name ?? 'a stage';
   const bStage = b.stage?.shortName ?? b.stage?.name ?? 'a stage';
+  if (split) return buildSplitNote(a, b, aStage, bStage, usesEstimated);
   return {
     id: `overlap-${a.perf.id}-${b.perf.id}`,
-    type: bothMustSee && !split ? 'must-see-conflict' : 'overlap',
-    severity: split ? 'info' : bothMustSee ? 'high' : 'warn',
+    type: bothMustSee ? 'must-see-conflict' : 'overlap',
+    severity: bothMustSee ? 'high' : 'warn',
     performanceIds: [a.perf.id, b.perf.id],
     artistNames: [a.artistName, b.artistName],
     // Stage + time alone forced the reader to reconstruct which band was
     // which mid-festival. The bands are the decision; lead with them.
-    title: split
-      ? `${a.artistName} and ${b.artistName}: split plan set`
-      : `${a.artistName} conflicts with ${b.artistName}`,
-    message: split
-      ? `${a.artistName} starts at ${formatMin(a.start)} at ${aStage} and ${b.artistName} ` +
-        `at ${formatMin(b.start)} at ${bStage}. You've planned to catch part of each — ` +
-        'My Day shows the trimmed times.'
-      : `${a.artistName} starts at ${formatMin(a.start)} at ${aStage}. ` +
-        `${b.artistName} starts at ${formatMin(b.start)} at ${bStage}. ` +
-        endBasis(a, b) +
-        (bothMustSee
-          ? `Both are marked Must-See — you can only catch part of each.`
-          : `Higher priority right now: ${higher.artistName}.`),
+    title: `${a.artistName} conflicts with ${b.artistName}`,
+    message:
+      `${a.artistName} starts at ${formatMin(a.start)} at ${aStage}. ` +
+      `${b.artistName} starts at ${formatMin(b.start)} at ${bStage}. ` +
+      endBasis(a, b) +
+      (bothMustSee
+        ? `Both are marked Must-See — you can only catch part of each.`
+        : `Higher priority right now: ${higher.artistName}.`),
     usesEstimatedTime: usesEstimated,
     actions: attendActions(a, b),
   };
 }
 
+/**
+ * A split plan is a decision already made, so this is a heads-up, not a fork:
+ * it says how much of each set you get and offers no "pick one" buttons. The
+ * pair still overlaps on paper, which is exactly why it stays visible.
+ */
+function buildSplitNote(
+  a: Scheduled,
+  b: Scheduled,
+  aStage: string,
+  bStage: string,
+  usesEstimated: boolean,
+): Conflict {
+  const aw = attendWindow(a.perf, a.sel, a.end);
+  const bw = attendWindow(b.perf, b.sel, b.end);
+  const part = (s: Scheduled, w: typeof aw, stage: string) =>
+    w
+      ? `${s.artistName} ${formatMin(w.start)}–${formatMin(w.end)} at ${stage} ` +
+        `(${formatDuration(w.end - w.start)})`
+      : `${s.artistName} at ${stage}`;
+  return {
+    id: `split-${a.perf.id}-${b.perf.id}`,
+    type: 'split-plan',
+    severity: 'info',
+    performanceIds: [a.perf.id, b.perf.id],
+    artistNames: [a.artistName, b.artistName],
+    title: `Part of ${a.artistName}, part of ${b.artistName}`,
+    message:
+      `You're catching ${part(a, aw, aStage)}, then ${part(b, bw, bStage)}. ` +
+      'Half of each, on purpose — My Day shows the same times.',
+    usesEstimatedTime: usesEstimated,
+    actions: splitActions(a, b),
+  };
+}
+
+/** No "choose one" on a split — only adjusting it, or putting the note away. */
+function splitActions(a: Scheduled, b: Scheduled): ConflictAction[] {
+  const ids = [a.perf.id, b.perf.id];
+  return [
+    { kind: 'split', label: 'Adjust the split', performanceIds: ids },
+    { kind: 'ignore', label: 'Dismiss', performanceIds: ids },
+  ];
+}
+
+/** Minutes the assumed set length worked out to for this set. */
+function assumedLength(s: Scheduled): number {
+  return (s.end.minutes ?? s.start) - s.start;
+}
+
 /** Name the basis of an end time, so a guess never reads as a listed time. */
-function endLabel(kind: EffectiveEnd['kind']): string {
-  if (kind === 'exact') return 'exact end';
-  if (kind === 'assumed') return `assumed ${TYPICAL_SET_MINUTES}-min set`;
+function endLabel(s: Scheduled): string {
+  if (s.end.kind === 'exact') return 'exact end';
+  if (s.end.kind === 'assumed') return `assumed ${assumedLength(s)}-min set`;
   return 'estimated end';
 }
 
 /** The one-line disclosure of what an overlap between two sets rests on. */
 function endBasis(a: Scheduled, b: Scheduled): string {
   if (a.end.kind === 'exact' && b.end.kind === 'exact') return 'Based on exact times. ';
-  if (a.end.kind === 'assumed' || b.end.kind === 'assumed') {
-    return `No end time listed, so this assumes a ${TYPICAL_SET_MINUTES}-minute set. `;
+  const assumed = [a, b].filter((s) => s.end.kind === 'assumed');
+  if (assumed.length) {
+    // The two can differ: the late slots are assumed longer than the early ones.
+    const lengths = [...new Set(assumed.map(assumedLength))].sort((x, y) => x - y);
+    const phrase =
+      lengths.length > 1 ? `${lengths.join('- and ')}-minute sets` : `a ${lengths[0]}-minute set`;
+    return `No end time listed, so this assumes ${phrase}. `;
   }
   return 'The overlap uses an estimated end time. ';
 }

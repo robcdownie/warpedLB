@@ -131,12 +131,31 @@ describe('conflict engine (spec §22, §28)', () => {
       { ...sel('b', 'must-see'), attendanceDecision: 'attending' as const, arriveLateMinutes: 16 },
     ];
     const conflicts = detectConflicts('saturday', ctx(perfs, withSplit));
-    const overlap = conflicts.find((c) => c.performanceIds.includes('a') && c.performanceIds.includes('b'))!;
+    const note = conflicts.find((c) => c.performanceIds.includes('a') && c.performanceIds.includes('b'))!;
     // The sets still overlap on paper, so the card stays — but it's a note now.
-    expect(overlap.severity).toBe('info');
-    expect(overlap.title).toContain('split plan');
+    expect(note.type).toBe('split-plan');
+    expect(note.severity).toBe('info');
     // …and it no longer nags about an undecided choice.
     expect(conflicts.some((c) => c.type === 'undecided-attendance')).toBe(false);
+  });
+
+  it('a split note says how much of each set you get, and asks nothing', () => {
+    const perfs = [perf('a', 'ghost', '15:05', '15:45'), perf('b', 'beatbox', '15:20', '16:00')];
+    const withSplit = [
+      { ...sel('a'), attendanceDecision: 'attending' as const, leaveEarlyMinutes: 15 },
+      { ...sel('b'), attendanceDecision: 'attending' as const, arriveLateMinutes: 16 },
+    ];
+    const note = detectConflicts('saturday', ctx(perfs, withSplit)).find(
+      (c) => c.type === 'split-plan',
+    )!;
+    expect(note.title).toBe('Part of Jimmy Eat World, part of Underoath');
+    // The actual trimmed windows, not just "you planned a split".
+    expect(note.message).toContain('Jimmy Eat World 3:05 PM–3:30 PM');
+    expect(note.message).toContain('Underoath 3:36 PM–4:00 PM');
+    // No "pick one" buttons — the choice was already made.
+    expect(note.actions.some((x) => x.kind === 'attend')).toBe(false);
+    expect(note.actions.some((x) => x.kind === 'undecided')).toBe(false);
+    expect(note.actions.map((x) => x.kind)).toEqual(['split', 'ignore']);
   });
 
   it('labels overlaps that rely on an estimated end time', () => {

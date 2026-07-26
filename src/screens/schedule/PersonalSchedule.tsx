@@ -8,6 +8,7 @@ import { PriorityBadge } from '@/components/PriorityControl';
 import { withEffectiveEnds } from '@/domain/endTimes';
 import { travelMinutes, overrideMap } from '@/domain/travel';
 import { attendWindow } from '@/domain/splitSet';
+import { contestedPicks, planState, nextDecision } from '@/domain/attendance';
 import { formatTime, formatMinutes, formatDuration, dayLabel } from '@/domain/time';
 import { ART } from '@/config/event';
 import type { DayId, Performance } from '@/domain/types';
@@ -47,6 +48,13 @@ export function PersonalSchedule({ day }: { day: DayId }) {
     return { items, unknown };
   }, [selections, activeUserId, performanceById, day]);
 
+  // Which of the day's picks actually compete for the same minutes. Everything
+  // else on the plan stays on it until it's taken off.
+  const contested = useMemo(
+    () => contestedPicks(items.map(({ sel, perf }) => ({ sel, perf, end: ends.get(perf.id)! }))),
+    [items, ends],
+  );
+
   if (!items.length && !unknown.length) {
     return (
       <EmptyState
@@ -82,7 +90,9 @@ export function PersonalSchedule({ day }: { day: DayId }) {
           );
           travel = { minutes: t.minutes, from: locationById.get(prev.stageId)?.shortName ?? '' };
         }
-        const skipping = sel.attendanceDecision === 'skipping';
+        const isContested = contested.has(perf.id);
+        const state = planState(sel, contested);
+        const skipping = state === 'skipping';
         const window = attendWindow(perf, sel, end!);
         prev = perf;
 
@@ -134,22 +144,18 @@ export function PersonalSchedule({ day }: { day: DayId }) {
                     </div>
                   )}
                   <div className="mt-1 flex items-center gap-2">
-                    {/* Tap cycles going → maybe → skipping. Vocabulary matches
-                        the "maybe" badge used in Group views. */}
+                    {/* "Maybe" only exists where two picks compete; elsewhere the
+                        tap is simply on/off the plan. */}
                     <button
                       type="button"
-                      onClick={() => {
-                        const next =
-                          sel.attendanceDecision === 'attending'
-                            ? 'undecided'
-                            : sel.attendanceDecision === 'undecided'
-                              ? 'skipping'
-                              : 'attending';
-                        void setAttendance(activeUserId, perf.id, next);
-                      }}
-                      aria-label={`Attendance for ${artist?.name}: ${
-                        skipping ? 'skipping' : sel.attendanceDecision === 'attending' ? 'going' : 'maybe'
-                      }. Tap to change.`}
+                      onClick={() =>
+                        void setAttendance(
+                          activeUserId,
+                          perf.id,
+                          nextDecision(state, isContested),
+                        )
+                      }
+                      aria-label={`Attendance for ${artist?.name}: ${state}. Tap to change.`}
                       className={cx(
                         'min-h-touch -my-2 flex items-center rounded-full px-2 text-[11px] font-semibold active:opacity-80',
                       )}
@@ -157,16 +163,16 @@ export function PersonalSchedule({ day }: { day: DayId }) {
                       <span
                         className={cx(
                           'rounded-full px-2 py-0.5',
-                          skipping
+                          state === 'skipping'
                             ? 'bg-[var(--surface-sunken)] text-muted'
-                            : sel.attendanceDecision === 'attending'
+                            : state === 'going'
                               ? 'bg-warp-ok/15 text-warp-ok'
                               : 'bg-warp-warn/20 text-warn',
                         )}
                       >
-                        {skipping
+                        {state === 'skipping'
                           ? sel.skippedForConflict ? 'Skipping (conflict)' : 'Skipping'
-                          : sel.attendanceDecision === 'attending'
+                          : state === 'going'
                             ? 'Going'
                             : 'Maybe'}
                       </span>

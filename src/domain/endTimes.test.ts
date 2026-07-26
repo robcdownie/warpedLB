@@ -59,10 +59,10 @@ describe('effective end times (spec §19)', () => {
   });
 
   it('assumes a typical set when nothing follows on the stage', () => {
-    const a = perf('a', '21:30');
+    const a = perf('a', '13:30');
     const r = effectiveEnd(a, [a], 10);
     expect(r.kind).toBe('assumed');
-    expect(r.hhmm).toBe('22:00');
+    expect(r.hhmm).toBe('14:00');
   });
 
   it('is unknown only when there is no start time to work from', () => {
@@ -75,5 +75,32 @@ describe('effective end times (spec §19)', () => {
   it('honours a custom typical set length', () => {
     const a = perf('a', '15:00');
     expect(effectiveEnd(a, [a], 10, 45).hhmm).toBe('15:45');
+  });
+
+  describe('the late slots run longer', () => {
+    it('assumes 50 minutes from 4:50 PM on', () => {
+      const a = perf('a', '16:50');
+      const r = effectiveEnd(a, [a], 10);
+      expect(r.kind).toBe('assumed');
+      expect(r.hhmm).toBe('17:40');
+    });
+
+    it('still assumes 30 minutes just before the cutover', () => {
+      const a = perf('a', '16:45');
+      expect(effectiveEnd(a, [a], 10).hhmm).toBe('17:15');
+    });
+
+    it('assumes 50 minutes for a late-evening set', () => {
+      const a = perf('a', '21:00');
+      expect(effectiveEnd(a, [a], 10).hhmm).toBe('21:50');
+    });
+
+    it('lets the next set on the stage still cut a late set short', () => {
+      const a = perf('a', '17:00');
+      const b = perf('b', '17:35');
+      const r = effectiveEnd(a, [a, b], 10);
+      expect(r.kind).toBe('estimated');
+      expect(r.hhmm).toBe('17:25'); // 17:35 - 10, sooner than the assumed 17:50
+    });
   });
 });
