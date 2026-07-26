@@ -227,6 +227,13 @@ async function functionalPass(base) {
   // The partial-schedule warning is on screen, not just in the model.
   await page.click('nav[aria-label="Primary"] button[aria-label="Schedule"]');
   await page.waitForTimeout(400);
+  // Ask for My Day and Saturday explicitly. The tab now opens on Enter Times
+  // when today's board isn't entered, and the day toggle follows today — so
+  // without these two clicks, which view loads depends on the date.
+  await page.click('button:has-text("My Day")').catch(() => {});
+  await page.waitForTimeout(300);
+  await page.click('button:text-is("Saturday")').catch(() => {});
+  await page.waitForTimeout(300);
   const partialCopy = await page
     .waitForSelector('text=/Partial schedule/i', { timeout: 4000 })
     .then(() => true)

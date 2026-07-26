@@ -218,6 +218,16 @@ export interface AppSettings {
   breakNeeds: BreakKind[];
   /** Map editing (calibration) is gated behind this. */
   mapEditingEnabled: boolean;
+
+  // ---- board entry -------------------------------------------------------
+  // Where you were up to when the phone locked. Losing your place mid-column
+  // costs five taps to get back, ~76 times a day.
+  boardDay: DayId | null;
+  boardStageId: string | null;
+  /** Narrow the band pool to sets someone in the crew actually picked. */
+  boardPicksOnly: boolean;
+  /** Which Schedule sub-view you were last on. */
+  scheduleView: 'schedule' | 'editor' | 'conflicts' | null;
 }
 
 export interface HistoryEntry {

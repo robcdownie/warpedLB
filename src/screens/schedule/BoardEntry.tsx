@@ -1,12 +1,24 @@
 import { useMemo, useRef, useState } from 'react';
-import { Check, CornerDownLeft, Search, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Check, CornerDownLeft, Info, Search, Undo2, X } from 'lucide-react';
 import { useApp } from '@/store/appStore';
 import { Button, cx } from '@/components/ui';
 import { applyScheduleEdit } from './scheduleEdit';
-import { searchArtists, matchArtist } from '@/domain/matching';
-import { parseBoardTime, shouldAdvanceBoardTime, formatTime, hhmmToMinutes } from '@/domain/time';
+import { rankArtists, nearArtists } from '@/domain/matching';
+import {
+  parseBoardTime,
+  shouldAdvanceBoardTime,
+  formatTime,
+  hhmmToMinutes,
+  getNow,
+} from '@/domain/time';
 import { STAGES } from '@/data/stages';
 import type { Artist, DayId, Performance } from '@/domain/types';
+
+type Tone = 'ok' | 'warn' | 'error';
+interface Toast {
+  text: string;
+  tone: Tone;
+}
 
 const UNPLUGGED_STAGE_ID = 'warped-unplugged-stage';
 
@@ -25,26 +37,45 @@ export function BoardEntry() {
   const performances = useApp((s) => s.performances);
   const artistById = useApp((s) => s.artistById);
   const locationById = useApp((s) => s.locationById);
+  const selections = useApp((s) => s.selections);
   const updatePerformance = useApp((s) => s.updatePerformance);
+  const updateSettings = useApp((s) => s.updateSettings);
   const undo = useApp((s) => s.undoLastScheduleEdit);
+  const savedDay = useApp((s) => s.settings.boardDay);
+  const savedStageId = useApp((s) => s.settings.boardStageId);
+  const picksOnly = useApp((s) => s.settings.boardPicksOnly);
 
-  const [day, setDay] = useState<DayId>('saturday');
-  const [stageId, setStageId] = useState<string>(STAGES[1]?.id ?? STAGES[0].id);
+  // Where you were up to survives a phone lock — losing the column and stage
+  // on every relaunch cost five taps to get back, dozens of times a day. With
+  // nothing saved, start on today rather than always day one.
+  const [day, setDayState] = useState<DayId>(savedDay ?? getNow().day ?? 'saturday');
+  const [stageId, setStageIdState] = useState<string>(
+    savedStageId ?? STAGES[1]?.id ?? STAGES[0].id,
+  );
   const [timeRaw, setTimeRaw] = useState('');
   const [bandQuery, setBandQuery] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
 
   const timeRef = useRef<HTMLInputElement>(null);
   const bandRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const setDay = (d: DayId) => {
+    setDayState(d);
+    void updateSettings({ boardDay: d });
+  };
+  const setStageId = (id: string) => {
+    setStageIdState(id);
+    void updateSettings({ boardStageId: id });
+  };
+
   const isUnplugged = stageId === UNPLUGGED_STAGE_ID;
   const parsedTime = parseBoardTime(timeRaw);
 
-  const flash = (msg: string) => {
-    setToast(msg);
+  const flash = (text: string, tone: Tone = 'ok') => {
+    setToast({ text, tone });
     if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2200);
+    toastTimer.current = setTimeout(() => setToast(null), tone === 'ok' ? 2200 : 4000);
   };
 
   /** Rows that belong in this board column, in time order. */
@@ -54,14 +85,29 @@ export function BoardEntry() {
       .sort((a, b) => hhmmToMinutes(a.startTime!) - hhmmToMinutes(b.startTime!));
   }, [performances, stageId, day]);
 
-  /** The pool this column draws from: main sets for the day, or any unplugged. */
-  const pool = useMemo(
+  /** Everything that could go in this column: main sets for the day, or unplugged. */
+  const fullPool = useMemo(
     () =>
       performances.filter((p) =>
         isUnplugged ? p.type === 'unplugged' : p.type === 'main' && p.day === day,
       ),
     [performances, day, isUnplugged],
   );
+
+  /** Sets somebody in the crew actually picked. */
+  const pickedIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const s of selections) if (s.selected) ids.add(s.performanceId);
+    return ids;
+  }, [selections]);
+
+  const picked = useMemo(() => fullPool.filter((p) => pickedIds.has(p.id)), [fullPool, pickedIds]);
+  // The board has 76 sets; the crew starred maybe 25. Narrowing the pool makes
+  // the pre-music job finishable — and it's a shortcut, never a wall: a band
+  // outside the picks still surfaces in the search, flagged, so the whole board
+  // stays enterable.
+  const narrowed = picksOnly && picked.length > 0;
+  const pool = narrowed ? picked : fullPool;
 
   const placedInPool = pool.filter((p) => p.startTime && p.stageId).length;
 
@@ -76,42 +122,70 @@ export function BoardEntry() {
     return m;
   }, [performances, day]);
 
-  /** Band suggestions: unplaced first, then already-placed (which move). */
-  const suggestions = useMemo(() => {
-    if (!bandQuery.trim()) return [];
-    const poolArtists = pool
-      .map((p) => artistById.get(p.artistId))
-      .filter((a): a is Artist => !!a);
+  /** Band suggestions, best match first. */
+  const { rows: suggestions, more } = useMemo(() => {
+    const q = bandQuery.trim();
+    if (!q) return { rows: [], more: 0 };
 
-    const hits = searchArtists(bandQuery, poolArtists);
-    let rows = pool.filter((p) => hits.has(p.artistId));
+    const rank = (perfs: Performance[], outside: boolean) => {
+      const byArtist = new Map(perfs.map((p) => [p.artistId, p]));
+      const artists = [...byArtist.keys()]
+        .map((id) => artistById.get(id))
+        .filter((a): a is Artist => !!a);
+      return rankArtists(q, artists).map((r) => ({
+        perf: byArtist.get(r.artist.id)!,
+        artist: r.artist,
+        score: r.score,
+        outside,
+      }));
+    };
 
-    // Nothing contained the query — fall back to fuzzy (handles a misread
-    // letter off the board, e.g. "underoth").
-    if (!rows.length) {
-      const { exact, suggestions: near } = matchArtist(bandQuery, poolArtists);
-      const ids = new Set([exact?.id, ...near.map((n) => n.artist.id)].filter(Boolean) as string[]);
-      rows = pool.filter((p) => ids.has(p.artistId));
+    let hits = rank(pool, false);
+    // Narrowed to the picks and nothing matched? Widen to the rest of the board
+    // rather than claiming the band doesn't exist.
+    if (narrowed) {
+      const rest = fullPool.filter((p) => !pickedIds.has(p.id));
+      hits = [...hits, ...rank(rest, true)];
     }
 
-    return rows
-      .map((p) => ({
-        perf: p,
-        name: artistById.get(p.artistId)?.name ?? 'Unknown',
+    // Still nothing — a name misread off the board in the sun.
+    if (!hits.length) {
+      const byArtist = new Map(fullPool.map((p) => [p.artistId, p]));
+      const artists = [...byArtist.keys()]
+        .map((id) => artistById.get(id))
+        .filter((a): a is Artist => !!a);
+      hits = nearArtists(q, artists).map((artist) => ({
+        perf: byArtist.get(artist.id)!,
+        artist,
+        score: 3,
+        outside: !pickedIds.has(byArtist.get(artist.id)!.id),
+      }));
+    }
+
+    const rows = hits
+      .map((h) => ({
+        perf: h.perf,
+        name: h.artist.name,
+        score: h.score,
+        outside: h.outside,
         placedAt:
-          p.startTime && p.stageId
-            ? `${locationById.get(p.stageId)?.shortName ?? 'Stage'} · ${formatTime(p.startTime)}`
+          h.perf.startTime && h.perf.stageId
+            ? `${locationById.get(h.perf.stageId)?.shortName ?? 'Stage'} · ${formatTime(h.perf.startTime)}`
             : null,
       }))
-      .sort((a, b) => {
-        // Unplaced bands first — those are what you're looking for.
-        if (!a.placedAt !== !b.placedAt) return a.placedAt ? 1 : -1;
-        return a.name.localeCompare(b.name);
-      })
-      // Four keeps the picker inside the visible strip above an open iOS
-      // keyboard, even on an SE.
-      .slice(0, 4);
-  }, [bandQuery, pool, artistById, locationById]);
+      // Relevance first. An unplaced band breaks ties — that's usually the one
+      // being read off the board.
+      .sort(
+        (a, b) =>
+          a.score - b.score ||
+          Number(!!a.placedAt) - Number(!!b.placedAt) ||
+          a.name.length - b.name.length,
+      );
+
+    // Four keeps the picker inside the visible strip above an open iOS
+    // keyboard, even on an SE — but say so when there are more.
+    return { rows: rows.slice(0, 4), more: Math.max(0, rows.length - 4) };
+  }, [bandQuery, pool, fullPool, narrowed, pickedIds, artistById, locationById]);
 
   const commit = async (perf: Performance, name: string) => {
     // Read the field itself rather than the rendered `parsedTime`: a fast
@@ -119,7 +193,7 @@ export function BoardEntry() {
     // before React re-renders, and the closure would still hold the old value.
     const startTime = parseBoardTime(timeRef.current?.value ?? timeRaw);
     if (!startTime) {
-      flash('Enter a time first.');
+      flash('Enter a time first.', 'error');
       timeRef.current?.focus();
       return;
     }
@@ -129,7 +203,7 @@ export function BoardEntry() {
       performances,
     );
     if (res.error) {
-      flash(res.error);
+      flash(res.error, 'error');
       return;
     }
     const stageName = locationById.get(stageId)?.shortName ?? 'Stage';
@@ -137,20 +211,38 @@ export function BoardEntry() {
 
     setBandQuery('');
     setTimeRaw('');
-    flash(res.warnings[0] ?? `${name} → ${formatTime(startTime)}`);
+    // A warning used to REPLACE the confirmation, so a clashing entry looked
+    // like it hadn't saved. Say both: it saved, and here's the catch.
+    flash(
+      res.warnings[0]
+        ? `${name} → ${formatTime(startTime)} — ${res.warnings[0]}`
+        : `${name} → ${formatTime(startTime)}`,
+      res.warnings[0] ? 'warn' : 'ok',
+    );
     // After React flushes the cleared fields, so focus lands reliably on the
     // next row's time input (and iOS keeps the keyboard up).
     requestAnimationFrame(() => timeRef.current?.focus());
   };
 
   const clearRow = async (perf: Performance, name: string) => {
-    const res = applyScheduleEdit(perf, { stageId: null, startTime: null, endTime: null }, performances);
+    const res = applyScheduleEdit(
+      perf,
+      // An unplugged set keeps its stage — that's a seed invariant, not an
+      // assignment, and clearing it strands the row.
+      {
+        stageId: perf.type === 'unplugged' ? perf.stageId : null,
+        startTime: null,
+        endTime: null,
+      },
+      performances,
+    );
     await updatePerformance(res.performance, `Cleared ${name}`);
-    flash(`Removed ${name}`);
+    flash(`Removed ${name} — tap Undo to put it back`, 'warn');
   };
 
   const doUndo = async () => {
-    flash((await undo()) ? 'Reverted last entry.' : 'Nothing to undo.');
+    const ok = await undo();
+    flash(ok ? 'Reverted last entry.' : 'Nothing to undo.', ok ? 'ok' : 'error');
   };
 
   return (
@@ -184,11 +276,15 @@ export function BoardEntry() {
               onClick={(e) => {
                 setStageId(s.id);
                 setBandQuery('');
+                // A time left over from the last column would otherwise commit
+                // into this one on the next band tap.
+                setTimeRaw('');
                 e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+                requestAnimationFrame(() => timeRef.current?.focus());
               }}
               aria-pressed={active}
               className={cx(
-                'inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold',
+                'inline-flex min-h-touch shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold',
                 active
                   ? 'border-[var(--chip-on-border)] bg-[var(--chip-on)] text-white'
                   : 'border-subtle bg-[var(--surface-card)] text-secondary',
@@ -211,24 +307,59 @@ export function BoardEntry() {
       </div>
 
       {/* Progress for the pool this column draws from */}
-      <div className="mb-2 flex items-center justify-between text-[12px] text-secondary">
-        <span>
-          {placedInPool}/{pool.length} {isUnplugged ? 'unplugged' : day === 'saturday' ? 'Saturday' : 'Sunday'} sets
-          placed
+      <div className="mb-2 flex items-center justify-between gap-2 text-[12px] text-secondary">
+        <span className="min-w-0">
+          <b className="text-primary">
+            {placedInPool}/{pool.length}
+          </b>{' '}
+          {narrowed ? 'of our picks' : isUnplugged ? 'unplugged sets' : 'sets on the board'} placed
         </span>
-        <Button variant="secondary" className="min-h-9 px-2.5 text-[12px]" onClick={doUndo}>
+        <Button variant="secondary" className="min-h-touch px-2.5 text-[12px]" onClick={doUndo}>
           <Undo2 size={14} aria-hidden /> Undo
         </Button>
       </div>
 
+      {/* The board has ~76 sets and the crew starred a fraction of them. This
+          is the difference between a finishable job and a 76-row transcription
+          before music starts. */}
+      {picked.length > 0 && (
+        <button
+          type="button"
+          onClick={() => void updateSettings({ boardPicksOnly: !picksOnly })}
+          aria-pressed={picksOnly}
+          className={cx(
+            'mb-3 flex min-h-touch w-full items-center gap-2 rounded-xl border px-3 text-left text-[13px]',
+            picksOnly
+              ? 'border-[var(--chip-on-border)] bg-accent-soft text-accent'
+              : 'border-subtle bg-[var(--surface-card)] text-secondary',
+          )}
+        >
+          <Check size={15} className={cx(!picksOnly && 'opacity-30')} aria-hidden />
+          <span className="min-w-0 flex-1">
+            {picksOnly ? (
+              <>
+                Showing our {picked.length} picks — bands outside them still come up when you search
+              </>
+            ) : (
+              <>Showing all {fullPool.length} sets on the board</>
+            )}
+          </span>
+        </button>
+      )}
+
       {/* Add row — type time, type band, tap. Pinned above the column so it
           stays put once the stage chips scroll away. */}
       <div className="surface-card sticky top-0 z-10 mb-3 rounded-xl p-3">
-        {/* Names the column being built: the chips are gone once you scroll. */}
-        <p className="mb-2 font-display text-[13px] text-primary">
+        {/* Names the column being built: the chips are gone once you scroll,
+            and typing a whole column into the wrong stage is silent — nothing
+            collides, because the wrong column is empty. */}
+        <p className="mb-2 font-display text-[17px] leading-tight text-primary">
           {locationById.get(stageId)?.name ?? 'Stage'}
           <span className="ml-1.5 font-sans text-[12px] font-normal text-muted">
-            {isUnplugged ? `${day === 'saturday' ? 'Saturday' : 'Sunday'} · sets the day too` : `${column.length} set${column.length === 1 ? '' : 's'}`}
+            {day === 'saturday' ? 'Saturday' : 'Sunday'}
+            {isUnplugged
+              ? ' · sets the day too'
+              : ` · ${column.length} set${column.length === 1 ? '' : 's'}`}
           </span>
         </p>
         <div className="flex gap-2">
@@ -274,9 +405,15 @@ export function BoardEntry() {
                 value={bandQuery}
                 onChange={(e) => setBandQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && suggestions[0]) {
-                    e.preventDefault();
+                  if (e.key !== 'Enter' || !suggestions[0]) return;
+                  e.preventDefault();
+                  // Only commit blind when the top hit is unambiguous: the name
+                  // starts with what you typed, or it's the only candidate.
+                  // Otherwise Go would silently file the wrong band.
+                  if (suggestions.length === 1 || suggestions[0].score === 0) {
                     void commit(suggestions[0].perf, suggestions[0].name);
+                  } else {
+                    flash('More than one band matches — tap the right one.', 'warn');
                   }
                 }}
                 enterKeyHint="go"
@@ -291,8 +428,15 @@ export function BoardEntry() {
           </div>
         </div>
 
-        {/* Live read-back so a mistyped time is caught before it commits. */}
-        <p className={cx('mt-1.5 text-[12px]', parsedTime ? 'text-accent' : 'text-muted')}>
+        {/* Live read-back so a mistyped time is caught before it commits. This
+            is the only thing between a typo and a wrong set time, ~76 times a
+            day — it gets read at a glance, so it's sized to be glanceable. */}
+        <p
+          className={cx(
+            'mt-1.5 text-[15px] font-semibold',
+            !timeRaw ? 'text-muted' : parsedTime ? 'text-accent' : 'text-danger',
+          )}
+        >
           {timeRaw
             ? parsedTime
               ? `→ ${formatTime(parsedTime)}`
@@ -301,8 +445,8 @@ export function BoardEntry() {
         </p>
 
         {suggestions.length > 0 && (
-          <ul className="mt-2 space-y-1">
-            {suggestions.map(({ perf, name, placedAt }) => (
+          <ul className="mt-2 space-y-2">
+            {suggestions.map(({ perf, name, placedAt, outside }) => (
               <li key={perf.id}>
                 <button
                   type="button"
@@ -311,9 +455,16 @@ export function BoardEntry() {
                   // ~150 entries is the difference between fast and unusable.
                   onPointerDown={(e) => e.preventDefault()}
                   onClick={() => void commit(perf, name)}
-                  className="flex min-h-touch w-full items-center gap-2 rounded-lg bg-[var(--surface-sunken)] px-3 text-left active:opacity-80"
+                  className="flex min-h-[52px] w-full items-center gap-2 rounded-lg bg-[var(--surface-sunken)] px-3 text-left active:opacity-80"
                 >
-                  <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-primary">{name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[14px] font-semibold text-primary">
+                      {name}
+                    </span>
+                    {outside && (
+                      <span className="block text-[11px] text-muted">not in our picks</span>
+                    )}
+                  </span>
                   {placedAt ? (
                     <span className="shrink-0 text-[11px] font-semibold text-warn">on {placedAt} — move</span>
                   ) : (
@@ -324,17 +475,43 @@ export function BoardEntry() {
             ))}
           </ul>
         )}
+        {more > 0 && (
+          <p className="mt-1.5 text-[12px] text-muted">
+            +{more} more {more === 1 ? 'match' : 'matches'} — type another letter or two.
+          </p>
+        )}
         {bandQuery.trim() && suggestions.length === 0 && (
-          <p className="mt-2 text-[12px] text-muted">
+          <p className="mt-2 flex items-start gap-1.5 text-[12px] text-warn">
+            <AlertTriangle size={13} className="mt-0.5 shrink-0" aria-hidden />
             No {isUnplugged ? 'unplugged' : day === 'saturday' ? 'Saturday' : 'Sunday'} band matches
-            “{bandQuery}”.
+            “{bandQuery}”. Check the spelling on the board — or it may be a late addition.
           </p>
         )}
       </div>
 
+      {/* Tone and icon, not just text: at 76 rows in sunlight this strip gets
+          read by colour and shape. Everything used to be a green tick — including
+          "Enter a time first" and "that didn't save". */}
       {toast && (
-        <p className="mb-2 flex items-center gap-1.5 rounded-lg bg-accent-soft px-3 py-1.5 text-[12px] font-semibold text-accent">
-          <Check size={13} aria-hidden /> {toast}
+        <p
+          className={cx(
+            'mb-2 flex items-start gap-1.5 rounded-lg px-3 py-1.5 text-[13px] font-semibold',
+            toast.tone === 'ok'
+              ? 'bg-accent-soft text-accent'
+              : toast.tone === 'warn'
+                ? 'bg-warp-yellow/20 text-warn'
+                : 'bg-warp-danger/15 text-danger',
+          )}
+          role={toast.tone === 'ok' ? undefined : 'alert'}
+        >
+          {toast.tone === 'ok' ? (
+            <Check size={14} className="mt-0.5 shrink-0" aria-hidden />
+          ) : toast.tone === 'warn' ? (
+            <Info size={14} className="mt-0.5 shrink-0" aria-hidden />
+          ) : (
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden />
+          )}
+          {toast.text}
         </p>
       )}
 

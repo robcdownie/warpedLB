@@ -12,6 +12,7 @@ import { useScheduleStatus } from '@/hooks/useScheduleStatus';
 import { ScheduleStatusStrip, ProvisionalNote } from '@/components/ScheduleStatusStrip';
 import { FirstUseTip } from '@/components/FirstUseTip';
 import { conflictSummary } from '@/domain/conflicts';
+import { getNow } from '@/domain/time';
 import { ART } from '@/config/event';
 import type { MenuRoute } from '@/components/MenuDrawer';
 import type { DayId } from '@/domain/types';
@@ -22,13 +23,28 @@ type EntryMode = 'board' | 'list';
 
 export function ScheduleScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => void }) {
   const activeUserId = useApp((s) => s.settings.activeUserId);
-  const scheduleLoaded = useScheduleStatus().any;
+  const status = useScheduleStatus();
   const conflicts = useConflicts(activeUserId);
   const summary = conflictSummary(conflicts);
 
-  const [view, setView] = useState<View>(scheduleLoaded ? 'schedule' : 'editor');
+  const updateSettings = useApp((s) => s.updateSettings);
+  const savedView = useApp((s) => s.settings.scheduleView);
+
+  // Today's day, so day two doesn't open on day one's plan.
+  const today = getNow().day ?? 'saturday';
+  // Come back to whichever view you were last on. The old rule — "any day has
+  // sets, so show My Day" — sent you to the plan from Sunday morning onward
+  // with Sunday's board still untyped, and every phone lock cost five taps to
+  // get back. First run falls back to whether today is entered at all.
+  const [view, setViewState] = useState<View>(
+    savedView ?? (status.byDay[today].status === 'empty' ? 'editor' : 'schedule'),
+  );
+  const setView = (v: View) => {
+    setViewState(v);
+    void updateSettings({ scheduleView: v });
+  };
   const [entryMode, setEntryMode] = useState<EntryMode>('board');
-  const [day, setDay] = useState<DayId>('saturday');
+  const [day, setDay] = useState<DayId>(today);
 
   return (
     <Screen>
@@ -94,7 +110,7 @@ export function ScheduleScreen({ onOpenMenu }: { onOpenMenu: (r: MenuRoute) => v
       )}
 
       {view === 'schedule' &&
-        (scheduleLoaded ? (
+        (status.any ? (
           <>
             <DayToggle day={day} setDay={setDay} />
             <ScheduleStatusStrip day={day} />

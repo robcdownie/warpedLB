@@ -53,6 +53,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   festivalMode: false,
   breakNeeds: [],
   mapEditingEnabled: false,
+
+  boardDay: null,
+  boardStageId: null,
+  boardPicksOnly: true,
+  scheduleView: null,
 };
 
 /**
