@@ -199,6 +199,25 @@ export function WrapUpScreen({
         </p>
       </Card>
 
+      {/* The tour rolls on. A third of the Long Beach lineup plays Montréal,
+          and the people holding this wound-down page are the only crowd who
+          already know the app works. One pointer, nothing pushy. */}
+      <Card className="mb-4 p-4">
+        <h2 className="font-display text-[15px] text-primary">Going to Warped Montréal?</h2>
+        <p className="mt-1.5 text-[13px] leading-relaxed text-secondary">
+          Aug 21–22 at Parc Jean-Drapeau — a lot of this lineup plays there too. There&apos;s a
+          version of this app for that stop, same offline everything.
+        </p>
+        <a
+          href="https://robcdownie.github.io/warpedmtl/"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="mt-3 flex min-h-touch items-center justify-center rounded-lg bg-warp-blue-500 px-4 font-display text-[15px] text-white"
+        >
+          Open the Montréal app
+        </a>
+      </Card>
+
       {!final && !w.empty && (
         <Card className="mb-4 p-4">
           <h2 className="font-display text-[15px] text-primary">Keep a copy</h2>
